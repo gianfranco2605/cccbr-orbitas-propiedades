@@ -22,8 +22,11 @@ GET /wp-json/cccbr-orbitas/v1/propiedades
 - **Pagination:** keyset cursor on ascending post ID (`after_id`); `per_page` default 50, maximum 100.
 - **Scope:** all statuses of the `cccbr-propiedades` CPT, each item carrying its own status.
 
-The full request/response contract lives in [`docs/contract.md`](docs/contract.md) and the
-integration walkthrough in [`docs/consumer-guide.md`](docs/consumer-guide.md).
+**Building the import?** Start with [`docs/consumer-guide.md`](docs/consumer-guide.md) — how to
+authenticate, how to walk all 3055 properties without omissions or duplicates, how to retry, and a
+measured list of what the source data does not contain. The exhaustive contract is
+[`docs/contract.md`](docs/contract.md), and [`docs/REPORT.md`](docs/REPORT.md) summarises what was
+built and how it was verified.
 
 ## Installation
 
@@ -61,6 +64,7 @@ Working conventions, the local replica setup and the hard limits are documented 
 | `docs/consumer-guide.md` | How Orbitas consumes the endpoint |
 | `docs/security-review.md` | Executed security and privacy checks, with their results |
 | [`docs/OPEN-QUESTIONS.md`](docs/OPEN-QUESTIONS.md) | Decisions needed from CCCBR or Orbitas |
+| [`docs/REPORT.md`](docs/REPORT.md) | Final report: what was built, the criteria with evidence, limitations |
 
 ## Privacy
 

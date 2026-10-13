@@ -35,7 +35,7 @@ passes, the box here is checked, `docs/progress.md` has an entry and the work is
   during the walk (manual step documented), 401, 403, no secret-like keys in the response.
   Run the same cases with `curl` and record the results.
 - [x] **Task 13 — Security review**: scan code, docs, tests and sample responses for secrets and personal data; confirm the allow-list. Record evidence.
-- [ ] **Task 14 — Consumer guide** `docs/consumer-guide.md`: authentication, walking all pages, retries,
+- [x] **Task 14 — Consumer guide** `docs/consumer-guide.md`: authentication, walking all pages, retries,
   field reference, synthetic examples, known limitations (local media checks, missing currency,
   properties without location). Final pass on `README.md`, `CHANGELOG.md`, `CLAUDE.md`.
 
@@ -43,13 +43,13 @@ passes, the box here is checked, `docs/progress.md` has an entry and the work is
 
 ## Acceptance criteria (all must be ✅, with evidence, against the running local site)
 
-- [ ] AC1 Contract documented from the real schema (route, method, auth, permissions, fields, types, pagination, limits, errors).
-- [ ] AC2 Full walk returns every property in the source; statuses documented; no implicit filter by date, publication or associate status.
-- [ ] AC3 Counts and unique IDs reconciled against the DB, total and by status / author; differences justified.
-- [ ] AC4 Complete fields, custom fields, taxonomy and images per property; missing items reported.
-- [ ] AC5 Property → creator → associate checked on a sample and in total; missing authors and ambiguous relations reported, nothing invented.
-- [ ] AC6 Tests for multiple pages, last page, zero results, limits, retries, records changed during extraction; consistency mechanism documented.
-- [ ] AC7 Unauthenticated → 401, no capability → 403; no secrets or personal data in responses, docs or examples.
-- [ ] AC8 Consumer documentation with synthetic examples.
-- [ ] Code: `composer cs` clean, `composer stan` clean, `composer test` green, PHP 8.1 compatible, no plugin entries in the logs.
-- [ ] `git status` clean, every task committed, nothing pushed, production untouched.
+- [x] AC1 Contract documented from the real schema (route, method, auth, permissions, fields, types, pagination, limits, errors).
+- [x] AC2 Full walk returns every property in the source; statuses documented; no implicit filter by date, publication or associate status.
+- [x] AC3 Counts and unique IDs reconciled against the DB, total and by status / author; differences justified.
+- [x] AC4 Complete fields, custom fields, taxonomy and images per property; missing items reported.
+- [x] AC5 Property → creator → associate checked on a sample and in total; missing authors and ambiguous relations reported, nothing invented.
+- [x] AC6 Tests for multiple pages, last page, zero results, limits, retries, records changed during extraction; consistency mechanism documented.
+- [x] AC7 Unauthenticated → 401, no capability → 403; no secrets or personal data in responses, docs or examples.
+- [x] AC8 Consumer documentation with synthetic examples.
+- [x] Code: `composer cs` clean, `composer stan` clean, `composer test` green, PHP 8.1 compatible, no plugin entries in the logs.
+- [x] `git status` clean, every task committed, nothing pushed, production untouched.

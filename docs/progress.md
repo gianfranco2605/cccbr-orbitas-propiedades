@@ -975,3 +975,42 @@ All listed with their results in `docs/security-review.md` §1–§6: `git ls-fi
 sweeps over the tracked tree, `git log -p --all` scanned for credential-shaped literals, three
 `curl` probes of the 401/403/400 bodies, the recursive 40-key privacy scan of a 100-property page,
 and a WP-CLI query confirming the capability's scope in `wp_user_roles` and `wp_usermeta`.
+
+---
+
+## 2026-10-13 — Task 14 — Consumer guide and final pass
+
+### Files changed
+- `docs/consumer-guide.md` (new, 364 lines) — the deliverable for the Orbitas import team:
+  authentication and credential hygiene, the request arguments, the walk with both pseudocode and a
+  runnable Bash loop, the `max_id` snapshot recipe, how to do an incremental run with
+  `modified_at_gmt`, a retry table saying which codes are retryable and which are not, a **complete
+  synthetic property** with every field, an explanation of why numbers arrive as `{ raw, value }`
+  (with the measured counts), a table of **what the source does not contain** with real figures, the
+  issue-code frequencies from a full walk, the endpoint's own limitations, and a nine-step checklist
+  for the first import.
+- `CHANGELOG.md` — rewritten as the 0.1.0 entry.
+- `docs/REPORT.md` (new) — the final report: what was built, architecture with reasons, the criteria
+  table with evidence, performance, what the data turned out to be, limitations, and how to remove
+  the plugin locally.
+- `README.md` — points first at the consumer guide, and lists the report.
+- `docs/plan.md` — Task 14 ticked and **all ten acceptance criteria** ticked.
+
+### Verified while writing the guide
+- The documented single-property re-fetch trick works: `?per_page=1&after_id=184588` returns exactly
+  id 184589, and `?per_page=1&after_id=80186` returns exactly 80187. A claim in a guide is worth
+  nothing unless it has been run.
+- Every count quoted in the guide is copied from `docs/reconciliation.md` or `docs/schema.md`, both
+  of which record the query that produced it.
+
+### Final gates
+| Check | Result |
+|---|---|
+| `composer lint` | no syntax errors |
+| `composer cs` | **0 errors / 0 warnings** |
+| `composer stan` | **No errors** (level 8) |
+| `composer test` | **OK (71 tests, 195 assertions)** |
+| `GET` with the authorized account | **200** |
+| `GET` with no credentials | **401** |
+| `GET` with the account lacking the capability | **403** |
+| `logs wordpress` grepped for this plugin, whole log | **0** entries |
