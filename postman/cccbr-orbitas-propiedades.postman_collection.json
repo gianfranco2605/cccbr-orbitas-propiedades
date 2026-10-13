@@ -7,20 +7,64 @@
 	"auth": {
 		"type": "basic",
 		"basic": [
-			{ "key": "username", "value": "{{username}}", "type": "string" },
-			{ "key": "password", "value": "{{app_password}}", "type": "string" }
+			{
+				"key": "username",
+				"value": "{{username}}",
+				"type": "string"
+			},
+			{
+				"key": "password",
+				"value": "{{app_password}}",
+				"type": "string"
+			}
 		]
 	},
 	"variable": [
-		{ "key": "base_url", "value": "", "type": "string" },
-		{ "key": "route", "value": "/wp-json/cccbr-orbitas/v1/propiedades", "type": "string" },
-		{ "key": "cursor", "value": "0", "type": "string" },
-		{ "key": "walked_count", "value": "0", "type": "string" },
-		{ "key": "walked_pages", "value": "0", "type": "string" },
-		{ "key": "expected_total", "value": "0", "type": "string" },
-		{ "key": "first_page_ids", "value": "[]", "type": "string" },
-		{ "key": "repeat_cursor", "value": "100000", "type": "string" },
-		{ "key": "repeat_ids", "value": "[]", "type": "string" }
+		{
+			"key": "base_url",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "route",
+			"value": "/wp-json/cccbr-orbitas/v1/propiedades",
+			"type": "string"
+		},
+		{
+			"key": "cursor",
+			"value": "0",
+			"type": "string"
+		},
+		{
+			"key": "walked_count",
+			"value": "0",
+			"type": "string"
+		},
+		{
+			"key": "walked_pages",
+			"value": "0",
+			"type": "string"
+		},
+		{
+			"key": "expected_total",
+			"value": "0",
+			"type": "string"
+		},
+		{
+			"key": "first_page_ids",
+			"value": "[]",
+			"type": "string"
+		},
+		{
+			"key": "repeat_cursor",
+			"value": "100000",
+			"type": "string"
+		},
+		{
+			"key": "repeat_ids",
+			"value": "[]",
+			"type": "string"
+		}
 	],
 	"item": [
 		{
@@ -32,10 +76,18 @@
 						"method": "GET",
 						"url": {
 							"raw": "{{base_url}}{{route}}?per_page=10&after_id=0",
-							"host": ["{{base_url}}{{route}}"],
+							"host": [
+								"{{base_url}}{{route}}"
+							],
 							"query": [
-								{ "key": "per_page", "value": "10" },
-								{ "key": "after_id", "value": "0" }
+								{
+									"key": "per_page",
+									"value": "10"
+								},
+								{
+									"key": "after_id",
+									"value": "0"
+								}
 							]
 						},
 						"description": "The documented envelope, and the invariants every page must satisfy."
@@ -112,6 +164,14 @@
 									"    });",
 									"});",
 									"",
+									"pm.test('Attachments carry the original only, with no derivative sizes', () => {",
+									"    const expected = ['alt','height','id','mime_type','url','width'];",
+									"    body.data.forEach(p => {",
+									"        const all = p.media.featured === null ? p.media.gallery : [p.media.featured, ...p.media.gallery];",
+									"        all.forEach(a => pm.expect(Object.keys(a).sort()).to.eql(expected));",
+									"    });",
+									"});",
+									"",
 									"pm.collectionVariables.set('first_page_ids', JSON.stringify(body.data.map(p => p.id)));",
 									"pm.collectionVariables.set('expected_total', String(body.totals.total));"
 								]
@@ -125,10 +185,18 @@
 						"method": "GET",
 						"url": {
 							"raw": "{{base_url}}{{route}}?per_page=5&status=publish",
-							"host": ["{{base_url}}{{route}}"],
+							"host": [
+								"{{base_url}}{{route}}"
+							],
 							"query": [
-								{ "key": "per_page", "value": "5" },
-								{ "key": "status", "value": "publish" }
+								{
+									"key": "per_page",
+									"value": "5"
+								},
+								{
+									"key": "status",
+									"value": "publish"
+								}
 							]
 						},
 						"description": "The status filter narrows both the data and the totals."
@@ -159,10 +227,18 @@
 						"method": "GET",
 						"url": {
 							"raw": "{{base_url}}{{route}}?per_page=5&status=publish,draft",
-							"host": ["{{base_url}}{{route}}"],
+							"host": [
+								"{{base_url}}{{route}}"
+							],
 							"query": [
-								{ "key": "per_page", "value": "5" },
-								{ "key": "status", "value": "publish,draft" }
+								{
+									"key": "per_page",
+									"value": "5"
+								},
+								{
+									"key": "status",
+									"value": "publish,draft"
+								}
 							]
 						}
 					},
@@ -194,10 +270,18 @@
 						"method": "GET",
 						"url": {
 							"raw": "{{base_url}}{{route}}?per_page=100&after_id={{cursor}}",
-							"host": ["{{base_url}}{{route}}"],
+							"host": [
+								"{{base_url}}{{route}}"
+							],
 							"query": [
-								{ "key": "per_page", "value": "100" },
-								{ "key": "after_id", "value": "{{cursor}}" }
+								{
+									"key": "per_page",
+									"value": "100"
+								},
+								{
+									"key": "after_id",
+									"value": "{{cursor}}"
+								}
 							]
 						},
 						"description": "Loops over itself until has_more is false, then checks that the walk saw every property exactly once. Run it through the Collection Runner — a single send only fetches one page."
@@ -265,10 +349,18 @@
 						"method": "GET",
 						"url": {
 							"raw": "{{base_url}}{{route}}?per_page=100&after_id=99999999",
-							"host": ["{{base_url}}{{route}}"],
+							"host": [
+								"{{base_url}}{{route}}"
+							],
 							"query": [
-								{ "key": "per_page", "value": "100" },
-								{ "key": "after_id", "value": "99999999" }
+								{
+									"key": "per_page",
+									"value": "100"
+								},
+								{
+									"key": "after_id",
+									"value": "99999999"
+								}
 							]
 						},
 						"description": "Walking past the last id must end the walk cleanly, not error."
@@ -298,8 +390,15 @@
 						"method": "GET",
 						"url": {
 							"raw": "{{base_url}}{{route}}?status=pending",
-							"host": ["{{base_url}}{{route}}"],
-							"query": [{ "key": "status", "value": "pending" }]
+							"host": [
+								"{{base_url}}{{route}}"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "pending"
+								}
+							]
 						},
 						"description": "A filter that matches nothing is an empty 200, never a 404."
 					},
@@ -335,10 +434,18 @@
 						"method": "GET",
 						"url": {
 							"raw": "{{base_url}}{{route}}?per_page=25&after_id={{repeat_cursor}}",
-							"host": ["{{base_url}}{{route}}"],
+							"host": [
+								"{{base_url}}{{route}}"
+							],
 							"query": [
-								{ "key": "per_page", "value": "25" },
-								{ "key": "after_id", "value": "{{repeat_cursor}}" }
+								{
+									"key": "per_page",
+									"value": "25"
+								},
+								{
+									"key": "after_id",
+									"value": "{{repeat_cursor}}"
+								}
 							]
 						},
 						"description": "Retrying a page must be safe: the same cursor has to return the same rows."
@@ -362,10 +469,18 @@
 						"method": "GET",
 						"url": {
 							"raw": "{{base_url}}{{route}}?per_page=25&after_id={{repeat_cursor}}",
-							"host": ["{{base_url}}{{route}}"],
+							"host": [
+								"{{base_url}}{{route}}"
+							],
 							"query": [
-								{ "key": "per_page", "value": "25" },
-								{ "key": "after_id", "value": "{{repeat_cursor}}" }
+								{
+									"key": "per_page",
+									"value": "25"
+								},
+								{
+									"key": "after_id",
+									"value": "{{repeat_cursor}}"
+								}
 							]
 						}
 					},
@@ -391,10 +506,18 @@
 						"method": "GET",
 						"url": {
 							"raw": "{{base_url}}{{route}}?per_page=10&after_id=0",
-							"host": ["{{base_url}}{{route}}"],
+							"host": [
+								"{{base_url}}{{route}}"
+							],
 							"query": [
-								{ "key": "per_page", "value": "10" },
-								{ "key": "after_id", "value": "0" }
+								{
+									"key": "per_page",
+									"value": "10"
+								},
+								{
+									"key": "after_id",
+									"value": "0"
+								}
 							]
 						},
 						"description": "Re-reading the first page after the walk: the oldest ids cannot shift, because new properties get higher ids. This is the automated half of the 'record added during the walk' case described in the collection overview."
@@ -426,8 +549,15 @@
 						"method": "GET",
 						"url": {
 							"raw": "{{base_url}}{{route}}?per_page=101",
-							"host": ["{{base_url}}{{route}}"],
-							"query": [{ "key": "per_page", "value": "101" }]
+							"host": [
+								"{{base_url}}{{route}}"
+							],
+							"query": [
+								{
+									"key": "per_page",
+									"value": "101"
+								}
+							]
 						},
 						"description": "The cap is enforced by rejection, not by a silent clamp, so a consumer cannot believe it is paging in 500s."
 					},
@@ -454,8 +584,15 @@
 						"method": "GET",
 						"url": {
 							"raw": "{{base_url}}{{route}}?per_page=100",
-							"host": ["{{base_url}}{{route}}"],
-							"query": [{ "key": "per_page", "value": "100" }]
+							"host": [
+								"{{base_url}}{{route}}"
+							],
+							"query": [
+								{
+									"key": "per_page",
+									"value": "100"
+								}
+							]
 						}
 					},
 					"event": [
@@ -480,8 +617,15 @@
 						"method": "GET",
 						"url": {
 							"raw": "{{base_url}}{{route}}?per_page=abc",
-							"host": ["{{base_url}}{{route}}"],
-							"query": [{ "key": "per_page", "value": "abc" }]
+							"host": [
+								"{{base_url}}{{route}}"
+							],
+							"query": [
+								{
+									"key": "per_page",
+									"value": "abc"
+								}
+							]
 						}
 					},
 					"event": [
@@ -505,8 +649,15 @@
 						"method": "GET",
 						"url": {
 							"raw": "{{base_url}}{{route}}?per_page=0",
-							"host": ["{{base_url}}{{route}}"],
-							"query": [{ "key": "per_page", "value": "0" }]
+							"host": [
+								"{{base_url}}{{route}}"
+							],
+							"query": [
+								{
+									"key": "per_page",
+									"value": "0"
+								}
+							]
 						}
 					},
 					"event": [
@@ -530,8 +681,15 @@
 						"method": "GET",
 						"url": {
 							"raw": "{{base_url}}{{route}}?after_id=-1",
-							"host": ["{{base_url}}{{route}}"],
-							"query": [{ "key": "after_id", "value": "-1" }]
+							"host": [
+								"{{base_url}}{{route}}"
+							],
+							"query": [
+								{
+									"key": "after_id",
+									"value": "-1"
+								}
+							]
 						}
 					},
 					"event": [
@@ -555,8 +713,15 @@
 						"method": "GET",
 						"url": {
 							"raw": "{{base_url}}{{route}}?status=auto-draft",
-							"host": ["{{base_url}}{{route}}"],
-							"query": [{ "key": "status", "value": "auto-draft" }]
+							"host": [
+								"{{base_url}}{{route}}"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "auto-draft"
+								}
+							]
 						},
 						"description": "auto-draft and inherit are never returned and never accepted."
 					},
@@ -581,8 +746,15 @@
 						"method": "GET",
 						"url": {
 							"raw": "{{base_url}}{{route}}?status=publish,bogus",
-							"host": ["{{base_url}}{{route}}"],
-							"query": [{ "key": "status", "value": "publish,bogus" }]
+							"host": [
+								"{{base_url}}{{route}}"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "publish,bogus"
+								}
+							]
 						}
 					},
 					"event": [
@@ -608,12 +780,21 @@
 				{
 					"name": "401 without credentials",
 					"request": {
-						"auth": { "type": "noauth" },
+						"auth": {
+							"type": "noauth"
+						},
 						"method": "GET",
 						"url": {
 							"raw": "{{base_url}}{{route}}?per_page=1",
-							"host": ["{{base_url}}{{route}}"],
-							"query": [{ "key": "per_page", "value": "1" }]
+							"host": [
+								"{{base_url}}{{route}}"
+							],
+							"query": [
+								{
+									"key": "per_page",
+									"value": "1"
+								}
+							]
 						}
 					},
 					"event": [
@@ -636,15 +817,30 @@
 						"auth": {
 							"type": "basic",
 							"basic": [
-								{ "key": "username", "value": "{{noaccess_username}}", "type": "string" },
-								{ "key": "password", "value": "{{noaccess_app_password}}", "type": "string" }
+								{
+									"key": "username",
+									"value": "{{noaccess_username}}",
+									"type": "string"
+								},
+								{
+									"key": "password",
+									"value": "{{noaccess_app_password}}",
+									"type": "string"
+								}
 							]
 						},
 						"method": "GET",
 						"url": {
 							"raw": "{{base_url}}{{route}}?per_page=1",
-							"host": ["{{base_url}}{{route}}"],
-							"query": [{ "key": "per_page", "value": "1" }]
+							"host": [
+								"{{base_url}}{{route}}"
+							],
+							"query": [
+								{
+									"key": "per_page",
+									"value": "1"
+								}
+							]
 						},
 						"description": "A valid Application Password is not enough: the account also needs cccbr_orbitas_read_propiedades."
 					},
@@ -668,7 +864,9 @@
 						"method": "POST",
 						"url": {
 							"raw": "{{base_url}}{{route}}",
-							"host": ["{{base_url}}{{route}}"]
+							"host": [
+								"{{base_url}}{{route}}"
+							]
 						},
 						"description": "Only a readable method is registered, so the route cannot be used to change anything."
 					},
@@ -695,8 +893,15 @@
 						"method": "GET",
 						"url": {
 							"raw": "{{base_url}}{{route}}?per_page=100",
-							"host": ["{{base_url}}{{route}}"],
-							"query": [{ "key": "per_page", "value": "100" }]
+							"host": [
+								"{{base_url}}{{route}}"
+							],
+							"query": [
+								{
+									"key": "per_page",
+									"value": "100"
+								}
+							]
 						},
 						"description": "Scans a full page for key names that must never appear, and checks that people objects carry only the allow-listed fields."
 					},
@@ -763,7 +968,9 @@
 						"method": "OPTIONS",
 						"url": {
 							"raw": "{{base_url}}{{route}}",
-							"host": ["{{base_url}}{{route}}"]
+							"host": [
+								"{{base_url}}{{route}}"
+							]
 						},
 						"description": "A consumer can generate types from the live endpoint instead of transcribing the contract."
 					},

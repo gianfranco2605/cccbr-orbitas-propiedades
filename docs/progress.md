@@ -1035,7 +1035,10 @@ against the running site before its commit.
 - `docs/consumer-guide.md` — synthetic example trimmed, the HEIC row no longer mentions `sizes`, and
   two bullets added to "Reading it": de-duplicate by media `id`, and only the original URL is returned.
 - `postman/…collection.json` — new assertion that every attachment carries exactly
-  `alt,height,id,mime_type,url,width`.
+  `alt,height,id,mime_type,url,width` (63 assertions now). It was committed one commit late: the
+  first edit targeted the file as text and its anchor did not match after an earlier reformat, so it
+  silently did nothing while the rest of CR1.1 was committed. Re-done by editing the parsed JSON
+  structure instead of the raw text, which cannot miss.
 
 ### Verification
 | Check | Result |
