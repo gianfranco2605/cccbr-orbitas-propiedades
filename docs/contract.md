@@ -142,12 +142,14 @@ Nothing is inferred. When a value is missing, ambiguous or broken, the item says
 4. Resolve each remaining token against the option set in this order: exact option key → exact
    label → accent/case-folded label → slugified label (`local_comercial` style). First match wins
    and yields `{ key: <canonical option key>, label: <option label> }`.
-5. A token that resolves at step 4 only after folding also adds the issue
-   `option_value_normalized:<field>`.
-6. A token that does not resolve at all is returned **verbatim** as
-   `{ "key": "<raw token>", "label": null }` plus the issue `option_value_unmapped:<field>`.
-   The raw token is never dropped and a label is never guessed.
-7. Duplicate tokens within one field are collapsed.
+5. A token that does not resolve at all is returned **verbatim** as
+   `{ "key": "<raw token>", "label": null }` plus the issue `option_value_unmapped`. The raw token
+   is never dropped and a label is never guessed.
+6. Duplicate tokens within one field are collapsed.
+
+**How** a token matched is not reported. Until 0.2.0 a match that needed folding raised
+`option_value_normalized` on 367 properties — but a successful mapping is not a data problem, and
+the consumer receives the canonical key and label either way.
 
 ### 4.3 Price
 
@@ -321,7 +323,6 @@ is a short machine-oriented string (an id or token), never a sentence and never 
 | Code | Raised when |
 |---|---|
 | `title_name_mismatch` | `nombre-de-propiedad` has a value that differs from `post_title` |
-| `option_value_normalized` | an option token matched only after case/accent/slug folding |
 | `option_value_unmapped` | an option token matched no option at all (returned raw, `label: null`) |
 | `number_ambiguous` | a numeric value could be thousands-separated or decimal (`150.000`) |
 | `number_unparsable` | a non-empty numeric field could not be parsed at all |
@@ -532,4 +533,4 @@ Each change is required by a measurement in `docs/schema.md`; none of them touch
 | `pagination: { per_page, after_id, next_after_id, has_more }` | plus **`max_id`** | gives the consumer a cheap snapshot boundary for a multi-hour walk; it costs nothing (same aggregate query as `totals`) and only adds a field (§5.2) |
 | `associate_id` "from a real source field" | user meta `numero-de-asociado` | the only real source; flagged as Q4 because it is user meta |
 | `marketplace_id` "from a real source field, else `null`" | always `null` | no such field exists anywhere in the source (§4.10) |
-| `issues`: "machine-readable codes" | the fixed 21-code list in §4.11, each `{ code, field, detail }` | needed a concrete, stable enumeration to be consumable |
+| `issues`: "machine-readable codes" | the fixed 22-code list in §4.11, each `{ code, field, detail }` | needed a concrete, stable enumeration to be consumable |

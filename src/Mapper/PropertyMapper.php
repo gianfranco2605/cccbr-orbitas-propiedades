@@ -255,8 +255,6 @@ final class PropertyMapper {
 		foreach ( $entries as $entry ) {
 			if ( null === $entry['label'] ) {
 				$issues->add( IssueCode::OPTION_VALUE_UNMAPPED, $contract_field, $entry['key'] );
-			} elseif ( false === $entry['exact'] ) {
-				$issues->add( IssueCode::OPTION_VALUE_NORMALIZED, $contract_field, $entry['key'] );
 			}
 
 			$mapped[] = array(

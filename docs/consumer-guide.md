@@ -330,7 +330,6 @@ Measured over a full walk of all 3055 properties:
 | `price_currency_missing` | 2840 |
 | `location_missing` | 1063 |
 | `origin_unknown` | 543 |
-| `option_value_normalized` | 367 |
 | `media_attachment_missing` | 334 |
 | `number_ambiguous` | 329 |
 | `number_unparsable` | 105 |
@@ -342,9 +341,9 @@ Measured over a full walk of all 3055 properties:
 | `associate_id_missing` | 25 |
 | `coordinates_stale` | 2 |
 
-`option_value_normalized` (367) is the mildest: the stored token matched a known option only after
-folding accents, case or underscores. The `key` and `label` you receive are the canonical ones, so
-no action is needed — it is reported so CCCBR can tidy the source if they wish.
+A token that matched a known option only after folding accents, case or underscores is **not**
+reported: you receive the canonical `key` and `label`, so there is nothing to act on. Only a token
+that matches nothing at all appears, as `option_value_unmapped`.
 
 ---
 

@@ -37,7 +37,7 @@ final class OptionNormalizer {
 	 *
 	 * @param mixed $raw     Stored value: string, array, nested array, or null.
 	 * @param array $options Option set as `key => label`. May be empty.
-	 * @return list<array{key: string, label: string|null, exact: bool}>
+	 * @return list<array{key: string, label: string|null}>
 	 *
 	 * @phpstan-param array<string, string> $options
 	 */
@@ -113,22 +113,24 @@ final class OptionNormalizer {
 	 * Resolves one token against the option set.
 	 *
 	 * Order: exact key, exact label, folded key, folded label, slugified key, slugified label.
+	 * How a token matched is not reported: a successful mapping is not a data problem, and saying so
+	 * on 367 properties was noise. Only a token that matches **nothing** is reported.
 	 *
 	 * @param string $token  Raw token.
 	 * @param array  $lookup Pre-built lookup tables.
-	 * @return array{key: string, label: string|null, exact: bool}
+	 * @return array{key: string, label: string|null}
 	 *
 	 * @phpstan-param array{keys: array<string, string>, labels: array<string, string>, folded: array<string, string>, slugs: array<string, string>} $lookup
 	 */
 	private function resolve( string $token, array $lookup ): array {
 		if ( isset( $lookup['keys'][ $token ] ) ) {
-			return $this->entry( $token, $lookup['keys'][ $token ], true );
+			return $this->entry( $token, $lookup['keys'][ $token ] );
 		}
 
 		if ( isset( $lookup['labels'][ $token ] ) ) {
 			$key = $lookup['labels'][ $token ];
 
-			return $this->entry( $key, $lookup['keys'][ $key ] ?? $token, true );
+			return $this->entry( $key, $lookup['keys'][ $key ] ?? $token );
 		}
 
 		$folded = $this->fold( $token );
@@ -136,7 +138,7 @@ final class OptionNormalizer {
 		if ( isset( $lookup['folded'][ $folded ] ) ) {
 			$key = $lookup['folded'][ $folded ];
 
-			return $this->entry( $key, $lookup['keys'][ $key ] ?? $token, false );
+			return $this->entry( $key, $lookup['keys'][ $key ] ?? $token );
 		}
 
 		$slug = $this->slugify( $token );
@@ -144,14 +146,13 @@ final class OptionNormalizer {
 		if ( isset( $lookup['slugs'][ $slug ] ) ) {
 			$key = $lookup['slugs'][ $slug ];
 
-			return $this->entry( $key, $lookup['keys'][ $key ] ?? $token, false );
+			return $this->entry( $key, $lookup['keys'][ $key ] ?? $token );
 		}
 
 		// Unmapped: the raw token is preserved and the label stays null. Never guessed.
 		return array(
 			'key'   => $token,
 			'label' => null,
-			'exact' => false,
 		);
 	}
 
@@ -160,14 +161,12 @@ final class OptionNormalizer {
 	 *
 	 * @param string $key   Canonical option key.
 	 * @param string $label Option label.
-	 * @param bool   $exact Whether the token matched without folding.
-	 * @return array{key: string, label: string|null, exact: bool}
+	 * @return array{key: string, label: string|null}
 	 */
-	private function entry( string $key, string $label, bool $exact ): array {
+	private function entry( string $key, string $label ): array {
 		return array(
 			'key'   => $key,
 			'label' => $label,
-			'exact' => $exact,
 		);
 	}
 

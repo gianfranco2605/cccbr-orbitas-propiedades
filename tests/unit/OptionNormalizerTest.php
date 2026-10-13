@@ -73,12 +73,10 @@ final class OptionNormalizerTest extends TestCase {
 				array(
 					'key'   => 'usoresidencial',
 					'label' => 'Residencial',
-					'exact' => true,
 				),
 				array(
 					'key'   => 'usocomercial',
 					'label' => 'Comercial',
-					'exact' => true,
 				),
 			),
 			$result
@@ -95,7 +93,6 @@ final class OptionNormalizerTest extends TestCase {
 
 		$this->assertSame( 'usoresidencial', $result[0]['key'] );
 		$this->assertSame( 'Residencial', $result[0]['label'] );
-		$this->assertTrue( $result[0]['exact'] );
 	}
 
 	/**
@@ -107,8 +104,7 @@ final class OptionNormalizerTest extends TestCase {
 		$result = $this->normalizer->normalize( 'Residencial | Comercial | agrícola', $this->land_use_options() );
 
 		$this->assertCount( 3, $result );
-		$this->assertSame( array( 'usoresidencial', 'usocomercial', 'usoagricola' ), array_column( $result, 'key' ) );
-		$this->assertSame( array( true, true, false ), array_column( $result, 'exact' ), 'The lowercased accent form matches only after folding.' );
+		$this->assertSame( array( 'usoresidencial', 'usocomercial', 'usoagricola' ), array_column( $result, 'key' ), 'The lowercased accent form resolves through folding.' );
 	}
 
 	/**
@@ -183,7 +179,6 @@ final class OptionNormalizerTest extends TestCase {
 
 		$local = $this->normalizer->normalize( 'local_comercial', $options );
 		$this->assertSame( 'Local comercial', $local[0]['label'] );
-		$this->assertFalse( $local[0]['exact'] );
 
 		$project = $this->normalizer->normalize( 'proyecto', $options );
 		$this->assertSame( 'Proyecto', $project[0]['label'] );
@@ -206,15 +201,15 @@ final class OptionNormalizerTest extends TestCase {
 	}
 
 	/**
-	 * A variant spelling that is in neither the key nor the label stays unmapped.
+	 * A variant spelling that is in neither the key nor the label still resolves through folding.
 	 *
 	 * @return void
 	 */
-	public function test_unknown_operation_variant_stays_unmapped(): void {
+	public function test_unknown_operation_variant_resolves_through_folding(): void {
 		$result = $this->normalizer->normalize( 'alquiler_con_opción_de_compra', $this->operation_options() );
 
 		$this->assertSame( 'opciondecompra', $result[0]['key'], 'It folds to the same slug as the label "Alquiler con opción de compra".' );
-		$this->assertFalse( $result[0]['exact'] );
+		$this->assertSame( 'Alquiler con opción de compra', $result[0]['label'] );
 	}
 
 	/**

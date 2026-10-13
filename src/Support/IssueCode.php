@@ -23,11 +23,6 @@ final class IssueCode {
 	public const TITLE_NAME_MISMATCH = 'title_name_mismatch';
 
 	/**
-	 * An option token matched only after case, accent or slug folding.
-	 */
-	public const OPTION_VALUE_NORMALIZED = 'option_value_normalized';
-
-	/**
 	 * An option token matched no known option and is returned raw.
 	 */
 	public const OPTION_VALUE_UNMAPPED = 'option_value_unmapped';
@@ -140,7 +135,6 @@ final class IssueCode {
 	public static function all(): array {
 		return array(
 			self::TITLE_NAME_MISMATCH,
-			self::OPTION_VALUE_NORMALIZED,
 			self::OPTION_VALUE_UNMAPPED,
 			self::NUMBER_AMBIGUOUS,
 			self::NUMBER_UNPARSABLE,

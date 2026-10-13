@@ -1155,3 +1155,35 @@ is worse than an absent one.
 
 Whole-dataset counts per location issue code come with the reconciliation re-run at the end of this
 change request.
+
+## CR1.5 — Drop `option_value_normalized`
+
+### Files changed
+- `src/Support/IssueCode.php` — constant removed from the class and from `all()`.
+- `src/Mapper/PropertyMapper.php` — the branch that raised it is gone; only an unresolvable token is
+  still reported.
+- `src/Support/OptionNormalizer.php` — the `exact` flag existed **only** to feed that issue, so it
+  is removed from the entry shape, from `entry()` and from the three resolution branches. The
+  docblock now records that how a token matched is deliberately not reported.
+- `tests/unit/OptionNormalizerTest.php` — assertions updated; one test renamed from
+  `test_unknown_operation_variant_stays_unmapped` to
+  `test_unknown_operation_variant_resolves_through_folding`, because that is what it actually
+  proves: `alquiler_con_opción_de_compra` folds to the same slug as the glossary label and resolves
+  to `opciondecompra`. The old name was wrong before this change too.
+- `docs/contract.md` — the 7-step normalizer is now 6 steps, with a note explaining the removal; the
+  issue row deleted and the §9 count updated to **22** codes.
+- `docs/consumer-guide.md` — the code removed from the frequency table and the paragraph about it
+  replaced.
+
+### Why
+It reported a **successful** mapping. The consumer receives the canonical `key` and `label` either
+way, so there was nothing to act on — and it fired on 367 properties, drowning the codes that do
+need action.
+
+### Verification
+| Check | Result |
+|---|---|
+| `composer cs` / `stan` / `test` | clean / No errors / **OK (84 tests, 250 assertions)** |
+| `GET ?per_page=100` | **200**; `option_value_normalized` **absent**; classification entries still exactly `key,label` |
+| Codes still reported on that page | `location_incomplete` 25, `media_attachment_missing` 31, `price_currency_missing` 95, `number_ambiguous` 11, `number_unparsable` 5, `number_missing` 2, `option_value_unmapped` 3, `media_gallery_empty` 3 |
+| `logs wordpress --tail 30` | **0** entries from this plugin |

@@ -78,7 +78,7 @@ payload starts lean and grows only on request. Changes 1–5 are **breaking** fo
   `{ province, canton, district }`, each `{ id, name, slug }` or `null`. Issues: `location_missing`,
   `location_incomplete`, `location_ambiguous`. Conflicting terms are never resolved by guessing: the
   affected level becomes `null` and the conflict is reported.
-- [ ] **CR1.5 — Drop `option_value_normalized`.** It reports a successful mapping, not a data
+- [x] **CR1.5 — Drop `option_value_normalized`.** It reports a successful mapping, not a data
   problem. `option_value_unmapped` stays.
 
 **Fixes from the code review**
