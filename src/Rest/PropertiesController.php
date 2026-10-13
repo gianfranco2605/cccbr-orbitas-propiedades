@@ -140,7 +140,7 @@ final class PropertiesController {
 
 		// Load everything the whole page references in bulk before mapping anything, so no
 		// property triggers a query of its own.
-		$this->mapper->prime( $meta_by_id );
+		$this->mapper->prime( $posts, $meta_by_id );
 
 		$items = array();
 

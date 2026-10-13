@@ -79,6 +79,8 @@ global $wpdb;
  */
 $cccbr_orbitas_check_media_files = ( 'local' !== wp_get_environment_type() );
 
+$cccbr_orbitas_id_parser = new Support\IdListParser();
+
 $cccbr_orbitas_controller = new Rest\PropertiesController(
 	new Auth\Permissions(),
 	new Rest\PropertySchema(),
@@ -89,10 +91,14 @@ $cccbr_orbitas_controller = new Rest\PropertiesController(
 		new Support\NumberParser(),
 		new Mapper\LocationMapper(),
 		new Mapper\CoordinatesMapper(),
-		new Mapper\MediaMapper( new Support\IdListParser(), $cccbr_orbitas_check_media_files )
+		new Mapper\MediaMapper( $cccbr_orbitas_id_parser, $cccbr_orbitas_check_media_files ),
+		new Mapper\PeopleMapper(
+			new Repository\RelationsRepository( $wpdb ),
+			$cccbr_orbitas_id_parser
+		)
 	)
 );
 
 ( new Plugin( __FILE__, $cccbr_orbitas_controller ) )->register();
 
-unset( $cccbr_orbitas_controller, $cccbr_orbitas_check_media_files );
+unset( $cccbr_orbitas_controller, $cccbr_orbitas_check_media_files, $cccbr_orbitas_id_parser );

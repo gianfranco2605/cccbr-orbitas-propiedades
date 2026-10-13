@@ -98,6 +98,13 @@ final class PropertyMapper {
 	private MediaMapper $media;
 
 	/**
+	 * People and relations mapper.
+	 *
+	 * @var PeopleMapper
+	 */
+	private PeopleMapper $people;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param FieldMap          $fields      Option sets of the real JetEngine configuration.
@@ -106,6 +113,7 @@ final class PropertyMapper {
 	 * @param LocationMapper    $locations   Location taxonomy mapper.
 	 * @param CoordinatesMapper $coordinates Geocode cache mapper.
 	 * @param MediaMapper       $media       Media mapper.
+	 * @param PeopleMapper      $people      People and relations mapper.
 	 */
 	public function __construct(
 		FieldMap $fields,
@@ -113,7 +121,8 @@ final class PropertyMapper {
 		NumberParser $numbers,
 		LocationMapper $locations,
 		CoordinatesMapper $coordinates,
-		MediaMapper $media
+		MediaMapper $media,
+		PeopleMapper $people
 	) {
 		$this->fields      = $fields;
 		$this->options     = $options;
@@ -121,21 +130,26 @@ final class PropertyMapper {
 		$this->locations   = $locations;
 		$this->coordinates = $coordinates;
 		$this->media       = $media;
+		$this->people      = $people;
 	}
 
 	/**
 	 * Loads everything a whole page needs, in bulk, before any property is mapped.
 	 *
-	 * This is what keeps the endpoint free of N+1 queries: the attachments of all 100 properties
-	 * are fetched in one query here rather than one query per image during mapping.
+	 * This is what keeps the endpoint free of N+1 queries: the attachments, relation rows and
+	 * users of all 100 properties are fetched in a handful of queries here rather than one query
+	 * per image, per relation and per user during mapping.
 	 *
+	 * @param array $posts      Posts on the page.
 	 * @param array $meta_by_id Raw meta of each property on the page, keyed by property ID.
 	 * @return void
 	 *
+	 * @phpstan-param list<WP_Post> $posts
 	 * @phpstan-param array<int, array<string, mixed>> $meta_by_id
 	 */
-	public function prime( array $meta_by_id ): void {
+	public function prime( array $posts, array $meta_by_id ): void {
 		$this->media->prime( $meta_by_id );
+		$this->people->prime( $posts, $meta_by_id );
 	}
 
 	/**
@@ -160,6 +174,7 @@ final class PropertyMapper {
 		$features = $this->map_features( $meta, $issues );
 		$map_raw  = $this->string( $meta, 'mapa' );
 		$prefix   = $this->coordinates->meta_prefix();
+		$people   = $this->people->map( $post, $meta, $issues );
 
 		$this->check_title( $post, $meta, $issues );
 
@@ -206,14 +221,12 @@ final class PropertyMapper {
 				'has_attachments'    => $this->has_value( $meta, 'documentos-anexos' ),
 			),
 
-			// Filled in Task 9.
-			'creator'               => null,
-			'responsible'           => null,
-			'company'               => null,
-			'associate_id'          => null,
-			'marketplace_id'        => null,
-			'leads_count'           => 0,
-
+			'creator'               => $people['creator'],
+			'responsible'           => $people['responsible'],
+			'company'               => $people['company'],
+			'associate_id'          => $people['associate_id'],
+			'marketplace_id'        => $people['marketplace_id'],
+			'leads_count'           => $people['leads_count'],
 			'origin'                => $this->map_origin( $meta, $issues ),
 
 			'issues'                => $issues->all(),

@@ -373,7 +373,7 @@ Measured integrity of relation 131 (company → associate):
 | Child roles | 11 `um_asociado-activo-cccbr`, 1 `um_asociado-inactivo-cccbr` |
 | Children that **no longer exist** in `wp_users` | **2 of 14** → stale relation rows; every user lookup must tolerate a missing user (`LOOP_PROMPT.md` §4 says 12 children; the table holds 14, 12 of which still exist) |
 | Property authors that are a child in relation 131 | **1 of 250** → **448 properties get a `company`**, the other 2607 get `company: null` |
-| Leads | `leads_count` is `COUNT(*)` on `wp_jet_rel_171` by `parent_object_id`; 21 properties > 0, the rest 0. No lead content is exposed |
+| Leads | `leads_count` is `COUNT(*)` on `wp_jet_rel_171` by `parent_object_id`. The table holds 25 rows over 21 distinct parents, but **one parent is not a `cccbr-propiedades` post** (verified: `parent_not_a_property_row = 1`), so the export reports **20 properties with 24 leads** — matching the API exactly. No lead content is exposed |
 
 ---
 
@@ -390,7 +390,9 @@ Measured integrity of relation 131 (company → associate):
 ### 8.1 Associate number — **Q2 answered**
 
 User meta key **`numero-de-asociado`**, present on **1623 users** (**VERIFIED**, key names and
-counts only). It is the CCCBR associate/broker number, defined in the JetEngine user meta box
+counts only). Among the 250 property authors, **2 have no associate number**, and they own **25**
+properties — which is exactly the number of `associate_id_missing` issues the endpoint reports
+(**VERIFIED** in Task 9). It is the CCCBR associate/broker number, defined in the JetEngine user meta box
 "CorredorUserBOX" (`meta-3`) as a `text` field. Exposed as `associate_id`.
 
 This is the one user meta key the response reads beyond id/display name/email. It is deliberately

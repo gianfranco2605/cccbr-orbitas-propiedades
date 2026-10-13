@@ -29,8 +29,9 @@ Level 8 makes every nullable/mixed path explicit. Recorded in `CLAUDE.md` §2.
 - **Marketplace / Orbitas ID: it does not exist.** A key-name search over all of `wp_usermeta` and
   `wp_postmeta` for `%market%`, `%orbit%`, `%azure%`, `%crm%`, `%extern%` returns nothing. The only
   third-party identifiers are Wasi CRM's (`wasi`, `wasi_company`, `wasi_token`) — a different
-  system, and `wasi_token` is a credential. `marketplace_id` is therefore **always `null`**, with an
-  `issues` code. Nothing is inferred from `wasi`.
+  system, and `wasi_token` is a credential. `marketplace_id` is therefore **always `null`**.
+  Nothing is inferred from `wasi`. It carries **no** per-property issue code: an issue identical on
+  all 3055 records would be noise, so the absence is documented in `docs/contract.md` §4.10 instead.
 
 **Needs confirmation:** if Orbitas expects a Marketplace id to round-trip, someone has to create and
 populate that field in WordPress first. This plugin will not invent one.
@@ -94,14 +95,16 @@ can be improved — but only by writing new meta, which is out of scope.
 
 ---
 
-## Q7 — 107 of 498 geocoded properties hold a JetEngine geocoding error marker
+## Q7 — 108 of 499 geocoded properties hold a JetEngine geocoding error marker
 
 **Status:** OPEN (data quality, no decision needed to proceed)
 
 `coordinates` comes from JetEngine's geocode cache for the `mapa` field
-(`md5('mapa')_lat/_lng/_hash`). Measured: 391 properties have numeric coordinates, **107 hold the
-error marker `je-coord-error…`** (geocoding failed or returned nothing), and **7** have coordinates
-whose `_hash` no longer matches the current `mapa` value (stale cache).
+(`md5('mapa')_lat/_lng/_hash`). Measured: **499** properties carry the cache, of which **391** have
+numeric coordinates and **108 hold the error marker `je-coord-error…`** (geocoding failed or
+returned nothing). A further **7** have a `_hash` that no longer matches the current `mapa` value
+(stale cache); 5 of those 7 also hold an error marker, so only **2** are returned with coordinates
+plus a staleness warning.
 
 **Applied:** error markers → `coordinates: null` + `coordinates_geocode_error`; stale cache →
 coordinates returned + `coordinates_stale`. Re-geocoding is out of scope and would touch another
@@ -113,7 +116,33 @@ plugin's data.
 
 **Status:** OPEN (environment limitation, not a decision)
 
-`wp-content/uploads` is not present locally: every request is redirected (302) to production, and
-contacting production is forbidden. Broken-reference detection for media is therefore implemented
-but **not verifiable** on the replica. Needs one verification run on a staging copy that has the
-real uploads directory before Orbitas relies on the `issues` codes for media.
+`wp-content/uploads` exists locally but holds **no media** — only 28 plugin-generated files — and
+every media request is redirected (302) to production, which is off limits. So the plugin cannot
+tell a deleted file from an absent library here.
+
+**Applied:** `media_file_missing` is implemented but **runs only where
+`wp_get_environment_type()` is not `local`**, so on the replica it reports nothing rather than
+reporting every file as missing. The flag is injected into `Mapper\MediaMapper`, so both branches
+are unit-testable and the decision is visible at the composition root.
+
+**Still needed:** one verification run on a staging copy that has the real uploads directory, before
+Orbitas relies on `media_file_missing`. Note that **broken attachment *references* are already
+verified** (301 ids, Task 8) — that check needs no files, only `wp_posts`.
+
+---
+
+## Q8 — The existing public endpoint exposes associate full names
+
+**Status:** OPEN — observation only, **outside this ticket's scope**
+
+While cross-checking our output against a run of the old plugin
+(`cccbr-api-propiedades`, public route `cccbr/v1/propiedades`), its payload was seen to include the
+property author's **full name** in clear text, on a route that needs no authentication.
+
+That plugin is explicitly **not** to be modified, reused or deactivated by this work, and nothing
+was changed about it. It is recorded here only because the ticket is partly about data protection:
+CCCBR may want to review whether an unauthenticated route should return personal names, since the
+new endpoint deliberately requires an Application Password plus a dedicated capability for the same
+class of data.
+
+No action taken, and none proposed inside this task.

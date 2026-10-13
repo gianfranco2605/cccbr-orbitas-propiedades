@@ -622,3 +622,74 @@ figures, and the Task 7 entry above should be read with **108** rather than 107.
 - People and relations: creator, responsible, company through relation 131, `associate_id` from
   `numero-de-asociado`, lead count from `wp_jet_rel_171`, and bulk user priming through the same
   `prime()` hook so the page still costs no N+1 queries.
+
+---
+
+## 2026-10-13 — Task 9 — People and relations
+
+### Files changed
+- `src/Repository/RelationsRepository.php` (new) — two **bulk** queries over the JetEngine relation
+  tables: `company_parents()` on `wp_jet_rel_131` (associate → company) and `lead_counts()` on
+  `wp_jet_rel_171` (property → number of leads). `rel_id` is matched explicitly even on a dedicated
+  table, the table name is bound with `%i`, the id list is a run of `%d` built from a count, and
+  each table's existence is probed once per request so a deactivated JetEngine degrades to "no
+  company, zero leads" instead of leaking a database error into the JSON.
+- `src/Mapper/PeopleMapper.php` (new) — `creator`, `responsible`, `company`, `associate_id`,
+  `marketplace_id`, `leads_count`. The allow-list is the point of the class: a person is reduced to
+  **id, display name, email** (company: id and display name only, no email), and the single user
+  meta key it reads is `numero-de-asociado`. No user object reaches the serializer and user meta is
+  never iterated, so a national id, phone, birth date, payment status or Wasi credential cannot
+  leak even if added to the profile later.
+- `src/Mapper/PropertyMapper.php` — `prime()` now takes the page's posts as well and delegates to
+  both the media and people mappers; the six people fields are real.
+- `src/Rest/PropertiesController.php`, `cccbr-orbitas-propiedades.php` — wiring; the `IdListParser`
+  instance is shared between the media and people mappers.
+- `docs/schema.md` §7, §8.1 — leads nuance and the associate-number figure, both verified below.
+- `docs/OPEN-QUESTIONS.md` — Q8 added (observation about the old public endpoint); Q2, Q3 and Q7
+  corrected to the verified figures and to the implemented file-check behaviour.
+
+### Bulk loading
+`PeopleMapper::prime()` runs **one** relation query for lead counts, **one** for company parents,
+and then a single `cache_users()` for authors + responsible users + the companies those relations
+revealed — the companies deliberately join the same call rather than triggering a lookup each.
+`get_userdata()` and `get_user_meta()` during mapping therefore hit the primed cache.
+
+### Whole-dataset verification (31 pages, 3055 properties, 22 s)
+
+| Measure | Database | API | |
+|---|---|---|---|
+| distinct creators | 250 | **250** | ✅ |
+| properties with no creator | 0 | **0** | ✅ |
+| **creator object keys** | — | exactly `id, display_name, email` | ✅ allow-list holds across all 3055 |
+| **company object keys** | — | exactly `id, display_name` (no email) | ✅ |
+| properties with a company | 448 | **448** | ✅ |
+| distinct companies | 1 of the 250 authors is a relation-131 child | **1** | ✅ |
+| properties with a responsible | all 5 `corredor_asignado` values are empty | **0** | ✅ |
+| properties with `associate_id` | 250 authors, **2 without** `numero-de-asociado`, owning **25** properties | **3030 with / 25 without** (`associate_id_missing` = 25) | ✅ exact |
+| `marketplace_id` non-null | no such field exists | **0** | ✅ |
+| properties with leads | table has 25 rows over 21 parents, but **1 parent is not a `cccbr-propiedades` post** → 20 properties / 24 leads | **20 properties, 24 leads** (16 with one, 4 with two) | ✅ exact |
+
+### Facts
+- **VERIFIED** One of the 25 rows in `wp_jet_rel_171` points at a parent that is not a property
+  (`parent_not_a_property_row = 1`), which is why the export reports 20 properties and 24 leads
+  rather than the 21/25 the raw table suggests. `docs/schema.md` §7 now says so.
+- **VERIFIED** Exactly 2 of the 250 property authors have no `numero-de-asociado`, and they own the
+  25 properties that report `associate_id_missing`.
+- `responsible` is `null` for every property today and `company` for 2607 of them. Both are real
+  absences in the source, not mapping failures, and neither is reported as an issue: the contract
+  defines them as nullable.
+
+### Commands run
+| Command | Result |
+|---|---|
+| `composer lint` | no syntax errors (29 files) |
+| `composer cs` | **0 errors / 0 warnings** |
+| `composer stan` | **No errors** (level 8, 29 files) |
+| `composer test` | **OK (71 tests, 195 assertions)** |
+| Full walk `per_page=100` | 31 pages, **22 s**, every people figure reconciled above |
+| Lead-relation cross-check | `rel_rows 25 / distinct_parents 21 / parent_not_a_property_row 1 / parents_that_are_properties 20` |
+| Associate-number cross-check | `authors_total 250 / authors_without_associate_number 2 / properties_affected 25` |
+
+### Open points carried into Task 10
+- Count the queries per page and time `per_page=100`, now that every mapper is in place, and record
+  the numbers.
