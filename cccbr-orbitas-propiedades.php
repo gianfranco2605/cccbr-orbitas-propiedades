@@ -65,9 +65,16 @@ register_activation_hook(
 	}
 );
 
+/*
+ * This file is the composition root: it is the one place that reads WordPress's global database
+ * handle, and it passes it in by constructor so no class of this plugin ever touches a global.
+ */
+global $wpdb;
+
 $cccbr_orbitas_controller = new Rest\PropertiesController(
 	new Auth\Permissions(),
-	new Rest\PropertySchema()
+	new Rest\PropertySchema(),
+	new Repository\PropertyRepository( $wpdb )
 );
 
 ( new Plugin( __FILE__, $cccbr_orbitas_controller ) )->register();

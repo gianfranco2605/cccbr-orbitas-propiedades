@@ -324,3 +324,67 @@ which records the query that produced it.
 ### Open points carried into Task 5
 - Repository + keyset pagination over all statuses, the `status` filter, `totals` and `max_id` in
   one aggregate query, then a full walk proving 3055 unique ids with no duplicates.
+
+---
+
+## 2026-10-13 — Task 5 — Repository and keyset pagination
+
+### Files changed
+- `src/Pagination/Cursor.php` (new) — pure, WordPress-free: given a "page size plus one" result
+  set it yields the page, `next_after_id` and `has_more`. `has_more` comes from the **presence of
+  the extra row**, not from a count comparison, so it stays correct while the set changes.
+- `src/Repository/PropertyRepository.php` (new) — two prepared `$wpdb` queries:
+  `find_page_ids()` (`post_type = %s AND post_status IN (…) AND ID > %d ORDER BY ID ASC LIMIT
+  per_page + 1`) and `aggregate()` (one `GROUP BY post_status` returning `COUNT(*)` and `MAX(ID)`,
+  which answers `totals.total`, `totals.by_status` and `pagination.max_id` together).
+  `prepare_with_statuses()` is the only place in the plugin that assembles SQL text; the variable
+  part is a `%s` list built from a **count**, never from input, and every value including the
+  statuses is bound by `prepare()`. The sniff and PHPStan exemptions live only there, each with its
+  reason.
+- `src/Rest/PropertiesController.php` — consumes the repository and cursor; `data` currently holds
+  `{ id }` stubs (Task 6 replaces them with mapped objects).
+- `cccbr-orbitas-propiedades.php` — the composition root reads the global `$wpdb` once and injects
+  it, so no class of this plugin touches a global (comment in the file).
+- `tests/unit/CursorTest.php` (new) — 7 tests: empty page, partial page, exactly `per_page` with no
+  extra row, extra row dropped while setting `has_more`, `per_page = 1`, a non-positive page size
+  clamped, and a simulated full walk asserting every id is visited exactly once in order.
+
+### Why `$wpdb` and not `WP_Query`
+`WP_Query` paginates with `LIMIT … OFFSET`, which can skip or repeat rows when the set changes
+mid-walk, and it cannot express `ID > :cursor`. Keyset pagination therefore has no WordPress API,
+which is exactly the exception `CLAUDE.md` §4.2 allows. Meta, terms, users and attachments will
+still be read through WordPress APIs with primed caches (Tasks 6–9).
+
+### Commands run and results
+| Command | Result |
+|---|---|
+| `composer lint` | no syntax errors (13 files) |
+| `composer cs` | **0 errors / 0 warnings** |
+| `composer stan` | **No errors** (level 8, 13 files) |
+| `composer test` | **OK (10 tests, 27 assertions)** |
+| `GET ?per_page=3` | ids `80187, 80205, 80310`; `next_after_id=80310`; `has_more=true`; `max_id=184589`; `totals.total=3055`; `by_status={draft:60, publish:2612, trash:383}` — **matches the DB exactly** |
+| **Full walk** `per_page=100` | **31 pages, 14 s**, 3055 ids collected, **3055 unique** — **VERIFIED** |
+| Walk vs DB id set (`comm` on sorted sets) | `only in DB: 0`, `only in API: 0`, `in both: 3055` — **no omissions, no duplicates, no extras. VERIFIED** |
+| Walk ordering | strictly ascending, `first=80187`, `last=184589` — **VERIFIED** |
+| `status=publish` / `draft` / `trash` | totals 2612 / 60 / 383 with matching `by_status` and `max_id` 184589 / 180368 / 184171 — **VERIFIED** (2612 + 60 + 383 = 3055) |
+| `status=publish,draft` / `draft,trash` | totals 2672 / 443 with both statuses in `by_status` — **VERIFIED** |
+| `status=pending` (no matching rows) | **200**, `data: []`, `total: 0`, `by_status: {}` — an empty result is never a 404 — **VERIFIED** |
+| Same cursor requested twice | byte-identical 50-id pages — the walk is idempotent and safe to retry — **VERIFIED** |
+| `after_id=184589` (past the end) | `data: []`, `next_after_id: null`, `has_more: false`, `total: 3055` — **VERIFIED** |
+| `after_id=184170&per_page=100` (last partial page) | 40 items, `next_after_id=184589`, `has_more=false` — **VERIFIED** |
+| `logs wordpress --tail 400` after the walk | **0** entries from this plugin — **VERIFIED** |
+
+### Facts
+- **VERIFIED** `totals` and `max_id` do not depend on the cursor, so they are identical on every
+  page of a walk. That is what makes the snapshot recipe in `docs/contract.md` §5.2 usable.
+- **VERIFIED** The response is live, not cached: the two `$wpdb` reads are deliberately uncached
+  (documented at each `phpcs:ignore`), because a cached count would make Task 11's reconciliation
+  meaningless.
+- **Note on inspection, not a defect:** decoding the JSON with `json_decode( …, true )` turns the
+  empty `by_status` object into a PHP array, which then re-encodes as `[]`. The raw response is
+  `"by_status":{}` — confirmed by reading the response body directly.
+
+### Open points carried into Task 6
+- Replace the `{ id }` stubs with the mapped property object: core fields, the tolerant option
+  normalizer, the `{ raw, value }` numbers, currency, and the trash fields, with cache priming
+  (`update_meta_cache`) so a page of 100 costs no N+1 queries.

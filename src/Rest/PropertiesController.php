@@ -10,6 +10,8 @@ declare(strict_types=1);
 namespace ElPuas\CCCBR\OrbitasPropiedades\Rest;
 
 use ElPuas\CCCBR\OrbitasPropiedades\Auth\Permissions;
+use ElPuas\CCCBR\OrbitasPropiedades\Pagination\Cursor;
+use ElPuas\CCCBR\OrbitasPropiedades\Repository\PropertyRepository;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -52,14 +54,23 @@ final class PropertiesController {
 	private PropertySchema $schema;
 
 	/**
+	 * Property data source.
+	 *
+	 * @var PropertyRepository
+	 */
+	private PropertyRepository $repository;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Permissions    $permissions Authorization service.
-	 * @param PropertySchema $schema      Response schema provider.
+	 * @param Permissions        $permissions Authorization service.
+	 * @param PropertySchema     $schema      Response schema provider.
+	 * @param PropertyRepository $repository  Property data source.
 	 */
-	public function __construct( Permissions $permissions, PropertySchema $schema ) {
+	public function __construct( Permissions $permissions, PropertySchema $schema, PropertyRepository $repository ) {
 		$this->permissions = $permissions;
 		$this->schema      = $schema;
+		$this->repository  = $repository;
 	}
 
 	/**
@@ -100,20 +111,30 @@ final class PropertiesController {
 			return $args;
 		}
 
+		$cursor    = new Cursor( $args->per_page(), $this->repository->find_page_ids( $args ) );
+		$aggregate = $this->repository->aggregate( $args );
+
+		$items = array();
+
+		foreach ( $cursor->ids() as $id ) {
+			// Task 6 replaces this stub with the mapped property object.
+			$items[] = array( 'id' => $id );
+		}
+
 		$response = new WP_REST_Response(
 			array(
-				'data'         => array(),
+				'data'         => $items,
 				'pagination'   => array(
 					'per_page'      => $args->per_page(),
 					'after_id'      => $args->after_id(),
-					'next_after_id' => null,
-					'has_more'      => false,
-					'max_id'        => null,
+					'next_after_id' => $cursor->next_after_id(),
+					'has_more'      => $cursor->has_more(),
+					'max_id'        => $aggregate['max_id'],
 				),
 				'totals'       => array(
-					'total'     => 0,
+					'total'     => $aggregate['total'],
 					// Cast to an object so an empty map serializes as `{}` and not as `[]`.
-					'by_status' => (object) array(),
+					'by_status' => (object) $aggregate['by_status'],
 				),
 				'generated_at' => gmdate( 'Y-m-d\TH:i:s\Z' ),
 			)
