@@ -1,0 +1,33 @@
+# Dependencies
+/vendor/
+/node_modules/
+
+# Database dumps — never committed, never read
+*.sql
+*.sql.gz
+
+# Environment / secrets
+.env
+.env.*
+
+# Personal Claude Code settings
+/.claude/settings.local.json
+
+# Postman environments may contain credentials
+/postman/*.postman_environment.json
+
+# Tooling caches and local overrides
+/.phpunit.result.cache
+/.phpunit.cache/
+/phpcs.xml
+/phpstan.neon
+/phpunit.xml
+/.phpcs-cache
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~

@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<ruleset name="CCCBR Orbitas Propiedades">
+	<description>WPCS 3 + PHP 8.1 compatibility rules for the CCCBR Orbitas Propiedades plugin.</description>
+
+	<file>.</file>
+
+	<exclude-pattern>/vendor/*</exclude-pattern>
+	<exclude-pattern>/node_modules/*</exclude-pattern>
+
+	<arg name="basepath" value="."/>
+	<arg name="colors"/>
+	<arg name="extensions" value="php"/>
+	<arg name="parallel" value="8"/>
+	<arg value="sp"/>
+
+	<!-- Production runs PHP 8.1.13: fail on anything newer. -->
+	<config name="testVersion" value="8.1-"/>
+	<rule ref="PHPCompatibilityWP"/>
+
+	<config name="minimum_wp_version" value="6.9"/>
+
+	<rule ref="WordPress">
+		<!-- Composer PSR-4 autoloading drives the file names, not the WP core convention. -->
+		<exclude name="WordPress.Files.FileName"/>
+	</rule>
+
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="cccbr-orbitas-propiedades"/>
+			</property>
+		</properties>
+	</rule>
+
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="cccbr_orbitas"/>
+				<element value="CCCBR_ORBITAS"/>
+				<element value="ElPuas\CCCBR\OrbitasPropiedades"/>
+			</property>
+		</properties>
+	</rule>
+
+	<!-- Unit tests run without WordPress: its function alternatives do not exist there. -->
+	<rule ref="WordPress.WP.AlternativeFunctions">
+		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.PHP.DevelopmentFunctions">
+		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+</ruleset>

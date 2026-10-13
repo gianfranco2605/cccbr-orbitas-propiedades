@@ -1,0 +1,16 @@
+includes:
+	- vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+	level: 8
+	phpVersion: 80113
+	paths:
+		- cccbr-orbitas-propiedades.php
+		- src
+		- tests
+	excludePaths:
+		- vendor
+	bootstrapFiles:
+		# Defines CCCBR_ORBITAS_PLUGIN_ROOT / CCCBR_ORBITAS_TESTS_DIR for the unit suite.
+		- tests/bootstrap.php
+	treatPhpDocTypesAsCertain: false
