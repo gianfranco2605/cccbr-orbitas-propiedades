@@ -1,6 +1,6 @@
 # Reconciliation — `GET /wp-json/cccbr-orbitas/v1/propiedades`
 
-Produced by `tools/reconcile.php` on **2026-10-13 13:20:41 UTC**, against the local replica.
+Produced by `tools/reconcile.php` on **2026-10-13 18:33:40 UTC**, against the local replica.
 The tool walks the whole collection through `rest_do_request()` as an administrator, then
 reads the same facts straight from the database and compares them. It writes nothing, and
 reports only counts, identifiers and booleans — never a personal value.
@@ -15,8 +15,9 @@ reports only counts, identifiers and booleans — never a personal value.
 | Duplicate ids | 0 |
 | Ids in ascending order across the whole walk | yes |
 | `pagination.max_id` reported | 184589 |
+| Ids selected but not loadable (`pagination.skipped_ids`) | 0 |
 | Database queries for the whole walk | 381 |
-| Time inside the endpoint | 4.00 s |
+| Time inside the endpoint | 2.98 s |
 
 ## 2. Totals and unique ids
 
@@ -26,6 +27,7 @@ reports only counts, identifiers and booleans — never a personal value.
 | Ids present in the database but missing from the walk | 0 | 0 | ✅ | no omissions |
 | Ids returned that do not exist in the database | 0 | 0 | ✅ | no phantoms |
 | Duplicate ids in the walk | 0 | 0 | ✅ | no duplicates |
+| Ids reported in `pagination.skipped_ids` | 0 | 0 | ✅ | every selected id loaded |
 
 ### By status
 
@@ -77,6 +79,7 @@ reports only counts, identifiers and booleans — never a personal value.
 | `associate_id_missing` | 25 |
 | `coordinates_geocode_error` | 108 |
 | `coordinates_stale` | 2 |
+| `location_incomplete` | 34 |
 | `location_missing` | 1063 |
 | `media_attachment_missing` | 334 |
 | `media_featured_missing` | 61 |
@@ -84,10 +87,20 @@ reports only counts, identifiers and booleans — never a personal value.
 | `number_ambiguous` | 329 |
 | `number_missing` | 70 |
 | `number_unparsable` | 105 |
-| `option_value_normalized` | 367 |
 | `option_value_unmapped` | 60 |
 | `origin_unknown` | 543 |
 | `price_currency_missing` | 2840 |
+
+### Location, by number of properties affected
+
+| Code | Properties |
+|---|---|
+| `location_incomplete` | 34 |
+| `location_missing` | 1063 |
+| properties with all three levels resolved | 1958 |
+
+The counts above are **properties**, not occurrences: one property can raise
+`location_ambiguous` twice when two levels are contested.
 
 These describe the **source data**, not endpoint failures: every property is still
 returned in full. See `docs/contract.md` §4.11 for what each code means.
@@ -107,5 +120,5 @@ returned in full. See `docs/contract.md` §4.11 for what each code means.
 
 ## 7. Verdict
 
-**21 of 21 checks passed.** The endpoint returns every property in the source exactly once, and every
+**22 of 22 checks passed.** The endpoint returns every property in the source exactly once, and every
 field-level count agrees with the database.

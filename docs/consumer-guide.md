@@ -306,8 +306,9 @@ Plan for these. The counts are measured, not estimated, and come from
 |---|---|---|---|
 | **No Marketplace / Orbitas id anywhere** | all 3055 | `marketplace_id: null` always | Keep your own mapping keyed on the WordPress `id`, which is stable. If you need a round-trip id, CCCBR has to add the field first |
 | **Currency almost never recorded** | only **9** properties have one | `price.currency: null` + `price_currency_missing` | **Never infer** a currency from the amount. Import the price as unknown-currency and ask CCCBR, or agree one default in writing |
-| **No location** | **1063** of 3055 | all three members `null` + `location_missing` | Fall back to `map_raw`, which is free text, or leave the listing unplaced |
-| **Partial or conflicting location** | see §8 counts | the affected member `null` + `location_incomplete` / `location_ambiguous` | Import what resolved; a conflict is a cleanup item for CCCBR, not something to resolve on import |
+| **No location** | **1063** of 3055 | all three members `null` + `location_missing` | Fall back to `map_raw`, which is free text, or leave the listing unplaced. **1958** properties have all three levels |
+| **Partial location** | **34** properties | the missing member `null` + `location_incomplete` (`detail` lists which) | Import what resolved. Today all 34 are province-only |
+| **Conflicting location** | **0** today | the contested member `null` + `location_ambiguous` | It can appear if someone assigns two cantones or a mismatched distrito. A conflict is a cleanup item for CCCBR, never something to resolve on import |
 | **No coordinates** | 2556 have none; a further **108** failed geocoding | `coordinates: null` (+ `coordinates_geocode_error` for the 108) | Geocode on your side from `location` + `map_raw` if you need a pin |
 | **Stale coordinates** | 2 | coordinates **plus** `coordinates_stale` | The address changed after geocoding; re-geocode if precision matters |
 | **Broken image references** | **301** attachment ids that no longer exist, over **334** references on **118** properties | the id is omitted from `gallery` and reported as `media_attachment_missing` | Import the images that resolve; the report tells CCCBR what to re-upload |
@@ -332,14 +333,16 @@ Measured over a full walk of all 3055 properties:
 | `origin_unknown` | 543 |
 | `media_attachment_missing` | 334 |
 | `number_ambiguous` | 329 |
-| `number_unparsable` | 105 |
 | `coordinates_geocode_error` | 108 |
+| `number_unparsable` | 105 |
 | `media_gallery_empty` | 87 |
 | `number_missing` | 70 |
 | `media_featured_missing` | 61 |
 | `option_value_unmapped` | 60 |
+| `location_incomplete` | 34 |
 | `associate_id_missing` | 25 |
 | `coordinates_stale` | 2 |
+| `location_ambiguous` | **0** — no property in the current data has two terms on one level or a contradicted ancestry |
 
 A token that matched a known option only after folding accents, case or underscores is **not**
 reported: you receive the canonical `key` and `label`, so there is nothing to act on. Only a token

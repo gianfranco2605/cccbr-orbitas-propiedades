@@ -1269,8 +1269,7 @@ on the pure helper and by a standing check in the reconciliation rather than by 
   the fourteen `new` expressions are gone from it.
 - `tools/bootstrap.php` — calls the **same** `Factory`, so the CLI tools exercise exactly the graph
   an HTTP request uses and the wiring cannot drift into a second copy. It keeps one deliberate
-  override: a `wp_get_environment_type` filter forcing `local`, which is how the media file check
-  stays off in the `wpcli` container (CR1.7's note and `CLAUDE.md` §3.3 explain why).
+  override for the media file check — see the correction below.
 
 ### Why
 The graph was built on **every** WordPress request — page views, admin screens, cron — to serve an
@@ -1295,5 +1294,75 @@ PHPStan reported it as "expects callable, 'cccbr_orbitas_tools…' given"; fixed
 | `OPTIONS` | **200** — the schema is still published |
 | `GET /` (home page, no REST involved) | **200** |
 | `GET /wp-json/` | `cccbr-orbitas/v1` still registered |
-| `wp eval-file tools/measure-performance.php` | same figures as before: **4** warm queries, **20** cold, flat as the page grows — and no `media_file_missing`, so the forced-`local` filter works |
+| `wp eval-file tools/measure-performance.php` | same figures as before: **4** warm queries, **20** cold, flat as the page grows |
 | `logs wordpress --tail 40` | **0** entries from this plugin |
+
+## Change request 1 — accompanying work and a regression I introduced
+
+### Version 0.2.0
+- `cccbr-orbitas-propiedades.php` header and `CCCBR_ORBITAS_VERSION`, `README.md`, and the
+  `docs/contract.md` header (with a short "breaking for 0.1.0" box).
+- `CHANGELOG.md` — a full 0.2.0 entry: **Changed** (the five breaking contract changes, each with
+  the number that justified it), **Added** (`pagination.skipped_ids`), **Fixed** (the status race,
+  the zero-date, the lazy composition root) and **Internal**.
+- `tests/unit/PluginHeaderTest.php` — the version guard caught the bump, as designed. Rather than
+  re-pinning `0.2.0`, the test now asserts **SemVer format** and relies on the existing
+  header↔constant parity test. Pinning the number protected nothing and would need editing on every
+  release.
+
+### Regression I introduced in CR1.8, and the fix
+Moving the CLI tools onto the shared `Factory` dropped their explicit `$check_files = false`, and I
+replaced it with `add_filter( 'wp_get_environment_type', … )`. **Core has no such filter** — it
+reads a constant or environment variable and caches the result — so the call was a no-op and the
+media file check came back on for the tools. The reconciliation immediately reported **33 219**
+`media_file_missing` issues again.
+
+Worse, I had claimed in the CR1.8 entry that the filter worked, on the strength of
+`measure-performance.php` not printing any — but that tool never prints issue counts, so its silence
+proved nothing. That claim is now corrected above.
+
+**Fix:** `Factory::__construct( ?bool $check_media_files = null )`. An explicit value wins; `null`
+falls back to the environment. `tools/bootstrap.php` passes `false` and the dead filter helper is
+deleted. Verified by re-running the reconciliation: `media_file_missing` is gone.
+
+### A second stale check the re-run exposed
+`tools/reconcile.php` counted "properties with a location" as `array() !== $property['location']`.
+After CR1.4 `location` is **always** an object with three members, so that was true for all 3055 and
+the check failed against the database's 1992. It now counts a property as located when **at least
+one level resolved**, which reconciles exactly.
+
+### Reconciliation re-run — **22 of 22 checks pass**
+| Measure | Result |
+|---|---|
+| Properties returned / distinct / duplicates | 3055 / 3055 / **0** |
+| Ids missing from the walk, phantom ids | **0** / **0** |
+| `pagination.skipped_ids` across the whole walk | **0** — every selected id loaded |
+| By status | `publish` 2612, `draft` 60, `trash` 383, agreeing across walk, `totals` and database |
+| By author | 250 distinct, **0** with a differing count |
+| Field level | all 11 counts match the database, including the corrected location count of **1992** |
+| Queries / time for the whole walk | 381 queries, 6.5 s |
+
+### Location issue breakdown added to `docs/reconciliation.md` (properties, not occurrences)
+| Code | Properties |
+|---|---|
+| `location_missing` | **1063** |
+| `location_incomplete` | **34** |
+| `location_ambiguous` | **0** |
+| all three levels resolved | **1958** |
+
+So the source contains no self-contradicting location today: the 34 incomplete ones are all
+province-only. The code exists because the taxonomy permits the conflict, not because the data has
+one.
+
+### Documentation refreshed
+`docs/consumer-guide.md` (issue frequencies, the three location rows), `docs/REPORT.md` (0.2.0, 36
+fields, 22/22, 90 tests, the two new architecture bullets), `docs/reconciliation.md` (regenerated).
+
+### Final verification for the whole change request
+| Check | Result |
+|---|---|
+| `composer lint` / `cs` / `stan` | no syntax errors / 0 errors, 0 warnings / No errors (level 8) |
+| `composer test` | **OK (90 tests, 255 assertions)** |
+| `GET ?per_page=2` / no credentials / `?per_page=101` / without the capability | **200 / 401 / 400 / 403** |
+| `OPTIONS` | schema publishes **36** item fields, pagination members `per_page,after_id,next_after_id,has_more,max_id,skipped_ids`, and **no** `sizes` anywhere |
+| `logs wordpress`, whole log | **0** entries from this plugin |

@@ -66,6 +66,7 @@ function cccbr_orbitas_walk(): array {
 	$leads_properties = 0;
 	$leads_total      = 0;
 	$contract_photos  = 0;
+	$location_issues  = array();
 
 	do {
 		$result = cccbr_orbitas_tools_request(
@@ -121,8 +122,16 @@ function cccbr_orbitas_walk(): array {
 				++$with_responsible;
 			}
 
-			if ( array() !== $property['location'] ) {
-				++$with_location;
+			/*
+			 * `location` is always an object with the three members, so its presence proves
+			 * nothing: a property "has a location" when at least one level resolved.
+			 */
+			foreach ( (array) $property['location'] as $level ) {
+				if ( null !== $level ) {
+					++$with_location;
+
+					break;
+				}
 			}
 
 			if ( null !== $property['coordinates'] ) {
@@ -160,6 +169,8 @@ function cccbr_orbitas_walk(): array {
 				$leads_total += $leads;
 			}
 
+			$property_codes = array();
+
 			foreach ( (array) $property['issues'] as $issue ) {
 				if ( ! is_array( $issue ) ) {
 					continue;
@@ -167,6 +178,16 @@ function cccbr_orbitas_walk(): array {
 
 				$code            = (string) $issue['code'];
 				$issues[ $code ] = ( $issues[ $code ] ?? 0 ) + 1;
+
+				$property_codes[ $code ] = true;
+			}
+
+			// Per-property counts for the location codes: one property can raise the same code
+			// twice (two contested levels), and what matters is how many properties are affected.
+			foreach ( array_keys( $property_codes ) as $code ) {
+				if ( 0 === strpos( (string) $code, 'location' ) ) {
+					$location_issues[ (string) $code ] = ( $location_issues[ (string) $code ] ?? 0 ) + 1;
+				}
 			}
 		}
 
@@ -199,6 +220,7 @@ function cccbr_orbitas_walk(): array {
 		'leads_properties' => $leads_properties,
 		'leads_total'      => $leads_total,
 		'contract_photos'  => $contract_photos,
+		'location_issues'  => $location_issues,
 	);
 }
 
@@ -541,6 +563,29 @@ function cccbr_orbitas_reconcile(): void {
 	foreach ( $issues as $code => $count ) {
 		printf( "| `%s` | %d |\n", (string) $code, (int) $count );
 	}
+
+	echo "\n### Location, by number of properties affected\n\n";
+
+	$location_issues = (array) $walk['location_issues'];
+	ksort( $location_issues );
+
+	printf( "| Code | Properties |\n|---|---|\n" );
+
+	if ( array() === $location_issues ) {
+		printf( "| — | none |\n" );
+	}
+
+	foreach ( $location_issues as $code => $count ) {
+		printf( "| `%s` | %d |\n", (string) $code, (int) $count );
+	}
+
+	printf(
+		"| properties with all three levels resolved | %d |\n",
+		count( $api_unique ) - array_sum( array( $location_issues['location_missing'] ?? 0, $location_issues['location_incomplete'] ?? 0 ) )
+	);
+
+	echo "\nThe counts above are **properties**, not occurrences: one property can raise\n";
+	echo "`location_ambiguous` twice when two levels are contested.\n";
 
 	echo "\nThese describe the **source data**, not endpoint failures: every property is still\n";
 	echo "returned in full. See `docs/contract.md` §4.11 for what each code means.\n";

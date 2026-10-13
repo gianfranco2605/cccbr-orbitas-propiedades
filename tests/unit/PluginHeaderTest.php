@@ -47,7 +47,6 @@ final class PluginHeaderTest extends TestCase {
 	public function test_header_declares_required_fields(): void {
 		$expected = array(
 			'Plugin Name' => 'CCCBR Orbitas Propiedades',
-			'Version'     => '0.1.0',
 			'Author'      => 'ElPuas Digital Crafts',
 			'Text Domain' => 'cccbr-orbitas-propiedades',
 			'License'     => 'GPL-2.0-or-later',
@@ -56,6 +55,22 @@ final class PluginHeaderTest extends TestCase {
 		foreach ( $expected as $field => $value ) {
 			$this->assertSame( $value, self::$header[ $field ] ?? null, "Header field {$field}" );
 		}
+	}
+
+	/**
+	 * The version must be SemVer.
+	 *
+	 * The number itself is deliberately not asserted — pinning it here would mean editing a test on
+	 * every release for no protection. What matters is the format, and that the header and the
+	 * constant agree, which {@see self::test_version_constant_matches_header()} checks.
+	 *
+	 * @return void
+	 */
+	public function test_version_is_semver(): void {
+		$this->assertMatchesRegularExpression(
+			'/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/',
+			(string) ( self::$header['Version'] ?? '' )
+		);
 	}
 
 	/**

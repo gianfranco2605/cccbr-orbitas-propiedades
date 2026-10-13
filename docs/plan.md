@@ -94,10 +94,10 @@ payload starts lean and grows only on request. Changes 1–5 are **breaking** fo
 
 **Accompanying work**
 
-- [ ] Version 0.2.0 (header, constant, `CHANGELOG.md` "Changed" entry marking the breaking changes).
-- [ ] `docs/contract.md`, `Rest\PropertySchema`, PHPUnit tests, the Postman collection,
+- [x] Version 0.2.0 (header, constant, `CHANGELOG.md` "Changed" entry marking the breaking changes).
+- [x] `docs/contract.md`, `Rest\PropertySchema`, PHPUnit tests, the Postman collection,
   `docs/consumer-guide.md` (synthetic examples only), `README.md` and `docs/REPORT.md`.
-- [ ] Consumer guide: note that the featured image **can also appear inside the gallery** — that is
+- [x] Consumer guide: note that the featured image **can also appear inside the gallery** — that is
   how the property was saved in the source — so consumers should de-duplicate by media `id`.
-- [ ] Re-run `tools/reconcile.php`, refresh `docs/reconciliation.md`, and add the number of
+- [x] Re-run `tools/reconcile.php`, refresh `docs/reconciliation.md`, and add the number of
   properties per location issue code (aggregates only).

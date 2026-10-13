@@ -1,8 +1,16 @@
 # Response contract — `GET /wp-json/cccbr-orbitas/v1/propiedades`
 
-Version **0.1.0**. Derived from the measured source schema in [`docs/schema.md`](schema.md) — every
+Version **0.2.0**. Derived from the measured source schema in [`docs/schema.md`](schema.md) — every
 field below names the real source key it comes from. Where the contract sketch in `LOOP_PROMPT.md`
 §6 had to change, the reason is given in [§9](#9-changes-against-the-contract-sketch).
+
+> **0.2.0 is breaking for anyone who integrated against 0.1.0.** Orbitas had not validated the
+> contract yet, so the payload was trimmed to what they are known to need. In short: image
+> derivatives are gone; numbers are plain values instead of `{ raw, value }`; the three trash fields
+> became one `trash` object; `location` became
+> `{ province, canton, district }`; and `option_value_normalized` was dropped. `pagination` gained
+> `skipped_ids`. The `CHANGELOG.md` entry lists all of it.
+
 
 All examples are **synthetic**. The real database contains personal data of real people; no sample
 in this repository comes from it.

@@ -48,31 +48,20 @@ if ( ! function_exists( __NAMESPACE__ . '\\cccbr_orbitas_tools_prepare' ) ) {
 		 * The same composition root the plugin uses, so these tools exercise exactly the graph an
 		 * HTTP request does and the wiring cannot drift into a second copy.
 		 *
-		 * One deliberate difference: the media file-existence check is forced **off** below,
-		 * regardless of what `Factory` decides. Measured on this replica, an HTTP request reports
+		 * The media file-existence check is switched **off explicitly**, not left to the
+		 * environment. Measured on this replica, an HTTP request reports
 		 * `wp_get_environment_type() === 'local'` while the same call inside the `wpcli` container
-		 * reports `'production'` — the two containers do not share that setting. Trusting it here
-		 * made the reconciliation emit 33 219 `media_file_missing` issues for files the web request
-		 * correctly says nothing about. These tools reconcile counts and can verify a file no better
-		 * than the web path can; broken attachment *references* are still fully checked, because
-		 * that needs only `wp_posts`.
+		 * reports `'production'` — the containers do not share that setting, and core offers no
+		 * filter to correct it. Trusting it made the reconciliation emit 33 219
+		 * `media_file_missing` issues for files the web request correctly says nothing about. These
+		 * tools reconcile counts and can verify a file no better than the web path can; broken
+		 * attachment *references* are still fully checked, because that needs only `wp_posts`.
 		 */
-		add_filter( 'wp_get_environment_type', __NAMESPACE__ . '\\cccbr_orbitas_tools_force_local_environment' );
-
-		$controller = ( new Factory() )->controller();
+		$controller = ( new Factory( false ) )->controller();
 
 		add_action( 'rest_api_init', array( $controller, 'register_routes' ) );
 
 		return $controller;
-	}
-
-	/**
-	 * Forces the environment type seen by the tools, so the media file check stays off.
-	 *
-	 * @return string
-	 */
-	function cccbr_orbitas_tools_force_local_environment(): string {
-		return 'local';
 	}
 
 	/**

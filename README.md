@@ -6,7 +6,7 @@ complete property data, images, relations and the data of the user who created e
 import them into their Marketplace.
 
 - **Author:** ElPuas Digital Crafts
-- **Version:** 0.1.0
+- **Version:** 0.2.0
 - **Requires:** WordPress 6.9+, PHP 8.1+ (production runs PHP 8.1.13)
 - **License:** GPL-2.0-or-later
 
