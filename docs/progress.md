@@ -693,3 +693,99 @@ revealed — the companies deliberately join the same call rather than triggerin
 ### Open points carried into Task 10
 - Count the queries per page and time `per_page=100`, now that every mapper is in place, and record
   the numbers.
+
+---
+
+## 2026-10-13 — Task 10 — Performance
+
+### Files changed
+- `tools/bootstrap.php` (new) — shared bootstrap for the CLI tools: loads the Composer autoloader,
+  **minimally registers** the property post type and the location taxonomy (JetEngine normally does
+  that, and `get_the_terms()` refuses an unregistered taxonomy), composes the controller exactly as
+  the main plugin file does, hooks it to `rest_api_init`, signs in as an administrator, and runs a
+  request through `rest_do_request()` while counting `$wpdb->num_queries` and wall-clock time.
+  Task 11 reuses it.
+- `tools/measure-performance.php` (new) — the measurement harness below. With
+  `--exec="define('SAVEQUERIES', true);"` it also lists the individual queries of one page.
+- `phpcs.xml.dist` — `WordPress.Security.EscapeOutput` excluded for `/tools/*`: those scripts write
+  plain text to stdout, where HTML escaping would corrupt the output rather than protect anything.
+  `phpstan.neon.dist` — `tools` added to the analysed paths.
+
+Note: these entry scripts carry **no** `declare(strict_types=1)`, because `wp eval-file` strips the
+opening tag and evaluates the body, where PHP rejects a strict-types declaration that is no longer
+the first statement. Documented in the file header; every class they exercise declares it.
+
+### Queries per page — the N+1 proof
+`wp eval-file … --skip-plugins --skip-themes`, so the counts are **this plugin's own queries**,
+without the rest of the site's plugins.
+
+| Case | Status | Queries | Seconds | Items | Images returned |
+|---|---|---|---|---|---|
+| `per_page=100` **cold** (first request of the process) | 200 | **20** | 0.19 | 100 | 861 |
+| `per_page=100` warm (same page again) | 200 | **4** | 0.05 | 100 | 861 |
+| `per_page=1` | 200 | 6 | 0.004 | 1 | 11 |
+| `per_page=10` | 200 | 6 | 0.008 | 10 | 97 |
+| `per_page=50` | 200 | 6 | 0.027 | 50 | 439 |
+| `per_page=100` (middle of the set) | 200 | **12** | 0.20 | 100 | **1152** |
+| `per_page=100` (newest, partial page) | 200 | 13 | 0.05 | 50 | 414 |
+| `per_page=100&status=publish` | 200 | **12** | 0.06 | 100 | 840 |
+| `per_page=100` past the end | 200 | **2** | 0.002 | 0 | 0 |
+
+**The query count does not grow with the page size**: 1 property costs 6 queries and 100 properties
+with 1152 images cost 12. That is the no-N+1 guarantee, measured rather than asserted. Peak memory
+for the whole eight-request run was 83 MB.
+
+The four queries of a warm page, listed with `SAVEQUERIES`:
+
+1. `SELECT ID FROM wp_posts WHERE post_type = … AND post_status IN (…) AND ID > … ORDER BY ID ASC LIMIT …` — the keyset page
+2. `SELECT post_status, COUNT(*), MAX(ID) … GROUP BY post_status` — totals and `max_id` in one go
+3. `SELECT parent_object_id, COUNT(*) FROM wp_jet_rel_171 WHERE rel_id = '171' AND parent_object_id IN (…)` — lead counts for the whole page
+4. `SELECT child_object_id, parent_object_id FROM wp_jet_rel_131 WHERE rel_id = '131' AND child_object_id IN (…)` — companies for the whole page
+
+Everything else — posts, post meta, terms, attachments, attachment meta, users, user meta — is
+served from caches primed in bulk, which is why those four are all that remain. The extra queries
+on a cold request are the bulk priming itself (posts, meta, terms, attachments + their meta, users
++ their meta), the JetEngine configuration reads (option, two glossaries) and three
+`SHOW TABLES LIKE` probes, each memoized for the request.
+
+### End-to-end HTTP timing (whole site loaded, three samples each)
+
+| Request | Times | Payload |
+|---|---|---|
+| `/wp-json/` index (baseline: WordPress + every plugin, no property work) | 0.32 – 0.53 s | — |
+| our route, past the end (auth + 2 queries, zero items) | 0.28 – 0.37 s | — |
+| `per_page=1` | 0.62 – 2.11 s | 8.5 KB |
+| `per_page=10` | 0.53 – 1.13 s | 81 KB |
+| `per_page=50` | 0.49 – 0.60 s | 452 KB |
+| `per_page=100` | **0.45 – 0.54 s** | **937 KB** |
+| `per_page=100&after_id=120000` | 0.66 – 0.70 s | 1.45 MB |
+| full walk, 31 pages of 100 | **22 – 25 s total** | ≈ 30 MB |
+
+Reading these numbers: the WordPress bootstrap with all of this site's plugins already costs
+**0.28 – 0.35 s**, and our empty page costs the same, so the plugin adds no measurable overhead
+to a request that returns nothing. A full page of 100 properties with ~860 images costs
+**about 0.15 – 0.25 s of actual work** on top of that baseline. A `per_page=1` request is not
+faster than a `per_page=100` one, which says the cost is dominated by WordPress loading, not by
+our mapping — so Orbitas should always walk with `per_page=100`: it is ~30× fewer requests for the
+same work.
+
+The replica has no persistent object cache (`wp-optimize` and the local `advanced-cache.php` are
+deactivated per `CLAUDE.md` §3.3), so these are worst-case numbers; production with a persistent
+object cache can only do better.
+
+### Commands run
+| Command | Result |
+|---|---|
+| `composer lint` | no syntax errors (31 files) |
+| `composer cs` | **0 errors / 0 warnings** |
+| `composer stan` | **No errors** (level 8, 31 files) |
+| `composer test` | **OK (71 tests, 195 assertions)** |
+| `wp eval-file tools/measure-performance.php … --skip-plugins --skip-themes` | the table above |
+| same with `--exec="define('SAVEQUERIES', true);"` | the four-query breakdown above |
+| `curl -w %{time_total}` over six request shapes, three samples each | the timing table above |
+
+### Open points carried into Task 11
+- Reconciliation tool reusing `tools/bootstrap.php`: walk the whole set through
+  `rest_do_request()`, compare totals and unique ids with the database by status and by author,
+  and check creator → associate on a sample and on the whole set. Output to
+  `docs/reconciliation.md`, aggregates only.

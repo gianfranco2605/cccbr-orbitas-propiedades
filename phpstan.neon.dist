@@ -9,6 +9,7 @@ parameters:
 		- uninstall.php
 		- src
 		- tests
+		- tools
 	excludePaths:
 		- vendor
 	bootstrapFiles:

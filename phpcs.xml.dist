@@ -45,8 +45,17 @@
 	<!-- Unit tests run without WordPress: its function alternatives do not exist there. -->
 	<rule ref="WordPress.WP.AlternativeFunctions">
 		<exclude-pattern>/tests/*</exclude-pattern>
+		<exclude-pattern>/tools/*</exclude-pattern>
 	</rule>
 	<rule ref="WordPress.PHP.DevelopmentFunctions">
 		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+
+	<!--
+		The files in tools/ are WP-CLI scripts: they write plain text to stdout, never HTML to a
+		browser, so HTML escaping would corrupt their output rather than protect anything.
+	-->
+	<rule ref="WordPress.Security.EscapeOutput">
+		<exclude-pattern>/tools/*</exclude-pattern>
 	</rule>
 </ruleset>

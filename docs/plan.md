@@ -23,7 +23,7 @@ passes, the box here is checked, `docs/progress.md` has an entry and the work is
 - [x] **Task 7 — Location, coordinates, expiration, origin.**
 - [x] **Task 8 — Media** (featured, ordered gallery, derivatives, issues).
 - [x] **Task 9 — People and relations**: creator, responsible, company, associate / Marketplace IDs, lead count, missing authors.
-- [ ] **Task 10 — Performance**: cache priming, queries per page, timing for `per_page=100`. Record the numbers.
+- [x] **Task 10 — Performance**: cache priming, queries per page, timing for `per_page=100`. Record the numbers.
 - [ ] **Task 11 — Reconciliation tool** `tools/reconcile.php`, run with `wp eval-file … --skip-plugins --skip-themes`
   (it loads this plugin's autoloader itself and calls the controller through `rest_do_request()`
   as an administrator, so no HTTP credentials are needed). Compare totals and unique IDs with the DB,
