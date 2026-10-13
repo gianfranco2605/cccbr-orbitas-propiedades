@@ -914,3 +914,64 @@ real item has **38**. `location` was missing from the list. Found by running the
 ### Open points carried into Task 13
 - Security review: scan the code, docs, tests and sample responses for secrets and personal data,
   and confirm the allow-list from the code side as well as from the response side.
+
+---
+
+## 2026-10-13 — Task 13 — Security review
+
+Full evidence: **`docs/security-review.md`** (new, registered in `CLAUDE.md` §5 and `README.md`).
+Every item there is a command that was run, with its output — nothing inferred from reading code.
+
+### What was checked and found
+
+**Nothing secret is committed.** 51 tracked files, none from `vendor/`, no `.sql`/`.sql.gz`/`.env`.
+A grep for credential-shaped assignments across code, config, tests and the Postman collection
+returns nothing. The four `CCCBR_API_*` variables appear **only as names**, never with a value.
+`.claude/settings.local.json` is on disk but untracked. 13 commits of history scanned for
+credential-shaped literals: **0 matches** (the one commit subject matching `/key/` is "keyset").
+No `var_dump`, `print_r`, `error_log` or `phpinfo` in shipped code.
+
+**Nothing personal is committed.** No email addresses beyond the author domain and `example.org`
+samples; no identity-number or phone-shaped patterns; no associate's name. The only person named is
+Gianfranco, the repository owner, named by `LOOP_PROMPT.md` itself. The author name that appeared in
+the third-party export inspected during Task 8 was **never written to any file** — verified by
+grepping for it. Test fixtures use property vocabulary only.
+
+**The allow-list holds, from both sides.** `Mapper\PeopleMapper` is the only file in `src/` that
+touches a user, in four places: one `get_user_meta()` for `numero-de-asociado` (the only user meta
+key named anywhere in the plugin), one `get_userdata()`, `display_name` and `user_email`. No
+`$user->data`, no `get_object_vars()`, no loop over user meta — a field added to a profile tomorrow
+cannot surface. From the response side, a 100-property page has **93 distinct key names** and
+**none** of 40 forbidden ones; `creator`/`responsible` carry exactly `id`/`display_name`/`email`,
+`company` has no email, `private_documents` is two booleans, `leads_count` an integer.
+
+**The gate works.** 401 without credentials, 403 with a valid Application Password but no
+capability; `__return_true` appears nowhere; error bodies carry only `code`, `message` and
+`data.status`, and the 400 body does not echo the rejected value. The capability is present in
+`wp_user_roles` **once** and held directly by **0** users (`wp_usermeta`).
+
+**There is no write path.** A grep for every WordPress and `$wpdb` write function across `src/`,
+the main file and `tools/` returns **nothing**. The only persistence in the plugin is
+`add_cap()` on activation and `remove_cap()` in `uninstall.php`. `POST` to the route is
+**404 `rest_no_route`**.
+
+**Injection surface.** No superglobals anywhere; arguments are validated twice; the three places
+that assemble SQL each bind every value with `prepare()` and build only a `%s`/`%d` run from a
+count, with table names bound via `%i`; `apply_filters( 'the_content' )` appears nowhere, so no
+shortcode or page-builder hook executes while the response is built; and the plugin makes no
+outbound HTTP request of any kind.
+
+### Residual risks recorded (not defects)
+1. The payload **is** personal data — HTTPS and a dedicated least-privilege account for Orbitas are
+   deployment decisions the plugin cannot enforce.
+2. `administrator` receives the capability on activation, as decided in `CLAUDE.md` §2, so every
+   existing administrator can read the endpoint. Narrowing it is a one-line change.
+3. Media file existence stays unverified in this environment (Q3) — a data-quality gap, not a
+   security one.
+4. Creating the Orbitas credential is out of scope and was not done.
+
+### Commands run
+All listed with their results in `docs/security-review.md` §1–§6: `git ls-files`, five `grep`
+sweeps over the tracked tree, `git log -p --all` scanned for credential-shaped literals, three
+`curl` probes of the 401/403/400 bodies, the recursive 40-key privacy scan of a 100-property page,
+and a WP-CLI query confirming the capability's scope in `wp_user_roles` and `wp_usermeta`.

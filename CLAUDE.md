@@ -181,6 +181,7 @@ Exported by Gianfranco as `CCCBR_API_USER`, `CCCBR_API_APP_PASSWORD`, `CCCBR_API
 | `docs/contract.md` | Response contract (route, auth, args, fields, pagination, errors) |
 | `docs/reconciliation.md` | Counts and IDs reconciled against the DB (aggregates only) |
 | `docs/consumer-guide.md` | How Orbitas consumes the endpoint (synthetic examples) |
+| `docs/security-review.md` | Executed security and privacy checks, with their results |
 | `docs/OPEN-QUESTIONS.md` | Anything needing Gianfranco's or Orbitas' decision |
 | `docs/REPORT.md` | Final report |
 

@@ -59,6 +59,7 @@ Working conventions, the local replica setup and the hard limits are documented 
 | `docs/contract.md` | Response contract |
 | `docs/reconciliation.md` | Counts and IDs reconciled against the database |
 | `docs/consumer-guide.md` | How Orbitas consumes the endpoint |
+| `docs/security-review.md` | Executed security and privacy checks, with their results |
 | [`docs/OPEN-QUESTIONS.md`](docs/OPEN-QUESTIONS.md) | Decisions needed from CCCBR or Orbitas |
 
 ## Privacy

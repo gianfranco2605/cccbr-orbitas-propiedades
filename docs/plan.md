@@ -34,7 +34,7 @@ passes, the box here is checked, `docs/progress.md` has an entry and the work is
   last page, zero results, `per_page` limit, invalid args, same cursor twice = same page, record added
   during the walk (manual step documented), 401, 403, no secret-like keys in the response.
   Run the same cases with `curl` and record the results.
-- [ ] **Task 13 — Security review**: scan code, docs, tests and sample responses for secrets and personal data; confirm the allow-list. Record evidence.
+- [x] **Task 13 — Security review**: scan code, docs, tests and sample responses for secrets and personal data; confirm the allow-list. Record evidence.
 - [ ] **Task 14 — Consumer guide** `docs/consumer-guide.md`: authentication, walking all pages, retries,
   field reference, synthetic examples, known limitations (local media checks, missing currency,
   properties without location). Final pass on `README.md`, `CHANGELOG.md`, `CLAUDE.md`.
