@@ -487,3 +487,63 @@ the consumer's log rather than information about a property. The absence is docu
 `expiration`, `location`, `coordinates` and `origin` (Task 7); `media` (Task 8); `creator`,
 `responsible`, `company`, `associate_id`, `leads_count` (Task 9). Each is marked in
 `PropertyMapper::map()` with the task that fills it.
+
+---
+
+## 2026-10-13 — Task 7 — Location, coordinates, expiration and origin
+
+### Files changed
+- `src/Mapper/CoordinatesMapper.php` (new, pure) — reads the JetEngine geocode cache
+  (`md5('mapa')` + `_lat` / `_lng` / `_hash`), refuses to expose a geocoding error marker
+  (`je-coord-error…`), validates the pair the way JetEngine does (numeric, |lat| ≤ 90,
+  |lng| ≤ 180), and compares the stored hash with `md5( mapa )` to flag a stale cache. Reports
+  `source: "jetengine_geocode:mapa"` so nobody mistakes geocoded coordinates for surveyed ones.
+- `src/Mapper/LocationMapper.php` (new) — expands each assigned `ubicacion-propiedad` term to its
+  full ancestor path with `level` 1 = provincia, 2 = cantón, 3 = distrito, de-duplicated and
+  ordered by level then name. The whole taxonomy (577 terms) is read **once per request** into an
+  index, so a page of 100 costs one term query rather than an ancestor walk per term; the walk is
+  loop-guarded against a corrupt hierarchy.
+- `src/Mapper/PropertyMapper.php` — `expiration`, `origin`, `location` and `coordinates` now real.
+- `cccbr-orbitas-propiedades.php` — wiring.
+- `tests/unit/CoordinatesMapperTest.php` (new) — 10 tests: the md5 prefix, fresh coordinates,
+  absent cache, error markers (both fields and one field), out-of-range and non-numeric values,
+  half a pair, a stale cache that still returns coordinates, a missing hash that must not claim
+  staleness, and valid zero coordinates.
+- `docs/schema.md` §5 — the 7 stale rows split by whether they also hold an error marker.
+
+### Whole-dataset verification (31 pages, all 3055 properties)
+
+| Measure | Database | API | |
+|---|---|---|---|
+| properties with a location | 1992 | **1992** | ✅ |
+| properties with **no** location | 1063 | **1063** (`location_missing`) | ✅ |
+| location terms emitted | 5908 term relationships exist | **5908** (L1 1992 + L2 1958 + L3 1958) | ✅ the ancestor expansion reproduces the stored relationships exactly |
+| properties with the full province/cantón/distrito path | — | 1958 | — |
+| properties with only a province | — | 34 | — |
+| root terms | the 7 provinces | San José 572, Alajuela 556, Heredia 420, Guanacaste 172, Puntarenas 149, Cartago 73, Limón 50 | ✅ seven, and they sum to 1992 |
+| properties with coordinates | 391 numeric of 498 cached | **391** | ✅ |
+| `coordinates_geocode_error` | 107 error markers | **107** | ✅ |
+| `coordinates_stale` | 7 stale hashes, **5 of which also hold an error marker** | **2** | ✅ verified by query: `stale_total 7 / stale_but_error_marker 5 / stale_with_usable_coords 2` |
+| properties with an expiration | 541 | **541** | ✅ |
+| `origin.source = wp_user_frontend` | 2512 rows with form 9536 | **2512** | ✅ |
+| `origin.source = unknown` | 540 without the key + 3 with an empty value | **543** (`origin_unknown`) | ✅ |
+
+### Facts
+- **VERIFIED** The term relationships stored by the site already include the ancestors: expanding
+  each assigned term to its full path produces exactly 5908 entries, the number of rows in
+  `wp_term_relationships` for this CPT. So the expansion adds no invented data — it only guarantees
+  the path is complete for the 34 properties that carry a single term.
+- **VERIFIED** `wp_term_taxonomy.count` is lower than the API's per-province totals (e.g. San José
+  507 vs 572) because the stored count only includes published posts, while the export covers every
+  status. Not a discrepancy.
+- A property without coordinates or without an expiration raises **no** issue: absence of an
+  optional feature is not a data-quality problem. Only a *broken* value is reported.
+
+### Commands run
+| Command | Result |
+|---|---|
+| `composer lint` | no syntax errors (24 files) |
+| `composer cs` | **0 errors / 0 warnings** |
+| `composer stan` | **No errors** (level 8, 24 files) |
+| `composer test` | **OK (59 tests, 162 assertions)** |
+| Full walk + aggregation | table above |

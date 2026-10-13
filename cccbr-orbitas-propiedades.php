@@ -78,7 +78,9 @@ $cccbr_orbitas_controller = new Rest\PropertiesController(
 	new Mapper\PropertyMapper(
 		new Schema\FieldMap( $wpdb ),
 		new Support\OptionNormalizer(),
-		new Support\NumberParser()
+		new Support\NumberParser(),
+		new Mapper\LocationMapper(),
+		new Mapper\CoordinatesMapper()
 	)
 );
 

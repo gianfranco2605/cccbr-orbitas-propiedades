@@ -331,7 +331,7 @@ Two measured hazards:
 |---|---|---|
 | `…_lat` holding a **geocoding error marker** (`je-coord-error…`, prefix from `lat-lng.php:12`) | **107 of 498** | `coordinates: null` + `coordinates_geocode_error` issue. Never exposed as a value |
 | `…_lat` holding a plain number | 391 of 498 | validated like JetEngine does: numeric and \|lat\| ≤ 90, \|lng\| ≤ 180 |
-| `…_hash` **≠** `md5( mapa )` → cache is stale for the current address | **7 of 498** | coordinates still returned, plus a `coordinates_stale` issue |
+| `…_hash` **≠** `md5( mapa )` → cache is stale for the current address | **7 of 498**, of which **5 also hold an error marker** and only **2** have usable coordinates | the 5 are reported as `coordinates_geocode_error` (there is nothing to return); the 2 are returned with a `coordinates_stale` issue |
 
 ---
 

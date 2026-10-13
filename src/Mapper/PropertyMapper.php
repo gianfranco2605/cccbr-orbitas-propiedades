@@ -77,16 +77,40 @@ final class PropertyMapper {
 	private NumberParser $numbers;
 
 	/**
+	 * Location taxonomy mapper.
+	 *
+	 * @var LocationMapper
+	 */
+	private LocationMapper $locations;
+
+	/**
+	 * Geocode cache mapper.
+	 *
+	 * @var CoordinatesMapper
+	 */
+	private CoordinatesMapper $coordinates;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param FieldMap         $fields  Option sets of the real JetEngine configuration.
-	 * @param OptionNormalizer $options Tolerant select/checkbox normalizer.
-	 * @param NumberParser     $numbers Conservative number parser.
+	 * @param FieldMap          $fields      Option sets of the real JetEngine configuration.
+	 * @param OptionNormalizer  $options     Tolerant select/checkbox normalizer.
+	 * @param NumberParser      $numbers     Conservative number parser.
+	 * @param LocationMapper    $locations   Location taxonomy mapper.
+	 * @param CoordinatesMapper $coordinates Geocode cache mapper.
 	 */
-	public function __construct( FieldMap $fields, OptionNormalizer $options, NumberParser $numbers ) {
-		$this->fields  = $fields;
-		$this->options = $options;
-		$this->numbers = $numbers;
+	public function __construct(
+		FieldMap $fields,
+		OptionNormalizer $options,
+		NumberParser $numbers,
+		LocationMapper $locations,
+		CoordinatesMapper $coordinates
+	) {
+		$this->fields      = $fields;
+		$this->options     = $options;
+		$this->numbers     = $numbers;
+		$this->locations   = $locations;
+		$this->coordinates = $coordinates;
 	}
 
 	/**
@@ -109,6 +133,8 @@ final class PropertyMapper {
 
 		$price    = $this->map_price( $meta, $classification['operation'], $issues );
 		$features = $this->map_features( $meta, $issues );
+		$map_raw  = $this->string( $meta, 'mapa' );
+		$prefix   = $this->coordinates->meta_prefix();
 
 		$this->check_title( $post, $meta, $issues );
 
@@ -126,9 +152,7 @@ final class PropertyMapper {
 			'content'               => $post->post_content,
 			'description_en'        => $this->string( $meta, 'descripcion-en-ingles' ),
 
-			// Filled in Task 7.
-			'expiration'            => null,
-
+			'expiration'            => $this->map_expiration( $meta, $issues ),
 			'operation'             => $classification['operation'],
 			'property_type'         => $classification['property_type'],
 			'land_use'              => $classification['land_use'],
@@ -141,11 +165,15 @@ final class PropertyMapper {
 			'registry_number'       => $this->string( $meta, 'numero-de-finca' ),
 			'purchase_option_terms' => $this->string( $meta, 'opciondecompracondiciones' ),
 			'video_url'             => $this->string( $meta, 'video_propiedad' ),
-			'map_raw'               => $this->string( $meta, 'mapa' ),
-
-			// Filled in Task 7.
-			'location'              => array(),
-			'coordinates'           => null,
+			'map_raw'               => $map_raw,
+			'location'              => $this->locations->map( $post->ID, $issues ),
+			'coordinates'           => $this->coordinates->map(
+				$this->first( $meta, $prefix . '_lat' ),
+				$this->first( $meta, $prefix . '_lng' ),
+				$this->first( $meta, $prefix . '_hash' ),
+				$map_raw,
+				$issues
+			),
 
 			// Filled in Task 8.
 			'media'                 => array(
@@ -166,11 +194,7 @@ final class PropertyMapper {
 			'marketplace_id'        => null,
 			'leads_count'           => 0,
 
-			// Filled in Task 7.
-			'origin'                => array(
-				'source'       => 'unknown',
-				'wpuf_form_id' => null,
-			),
+			'origin'                => $this->map_origin( $meta, $issues ),
 
 			'issues'                => $issues->all(),
 		);
@@ -325,6 +349,71 @@ final class PropertyMapper {
 		}
 
 		return $parsed;
+	}
+
+	/**
+	 * Maps the JetEngine post-expiration module's fields.
+	 *
+	 * 541 properties carry an expiration, all with the action `draft`. A property without one is
+	 * simply `null`: that is not a data-quality issue.
+	 *
+	 * @param array          $meta   Raw meta.
+	 * @param IssueCollector $issues Issue sink.
+	 * @return array{at_gmt: string, action: string}|null
+	 *
+	 * @phpstan-param array<string, mixed> $meta
+	 */
+	private function map_expiration( array $meta, IssueCollector $issues ): ?array {
+		$period = $this->first( $meta, '_jet_pep_period' );
+
+		if ( null === $period || '' === $period ) {
+			return null;
+		}
+
+		$at_gmt = $this->timestamp_to_iso( $period );
+
+		if ( null === $at_gmt ) {
+			$issues->add( IssueCode::EXPIRATION_INVALID, 'expiration', null );
+
+			return null;
+		}
+
+		return array(
+			'at_gmt' => $at_gmt,
+			'action' => $this->string( $meta, '_jet_pep_action' ),
+		);
+	}
+
+	/**
+	 * Maps the origin of the property, for audit.
+	 *
+	 * 2515 properties carry `_wpuf_form_id` (2512 of them form 9536). The other 540 carry **no
+	 * origin marker at all**: there is no JetFormBuilder post meta on this CPT and
+	 * `wp_jet_fb_records` is empty, so the source is reported as `unknown` rather than guessed
+	 * from the creation date (`docs/schema.md` §9).
+	 *
+	 * @param array          $meta   Raw meta.
+	 * @param IssueCollector $issues Issue sink.
+	 * @return array{source: string, wpuf_form_id: int|null}
+	 *
+	 * @phpstan-param array<string, mixed> $meta
+	 */
+	private function map_origin( array $meta, IssueCollector $issues ): array {
+		$form_id = $this->string( $meta, '_wpuf_form_id' );
+
+		if ( 1 === preg_match( '/^\d+$/', $form_id ) && (int) $form_id > 0 ) {
+			return array(
+				'source'       => 'wp_user_frontend',
+				'wpuf_form_id' => (int) $form_id,
+			);
+		}
+
+		$issues->add( IssueCode::ORIGIN_UNKNOWN, 'origin', null );
+
+		return array(
+			'source'       => 'unknown',
+			'wpuf_form_id' => null,
+		);
 	}
 
 	/**
