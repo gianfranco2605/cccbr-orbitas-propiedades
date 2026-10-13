@@ -89,7 +89,7 @@ $cccbr_orbitas_controller = new Rest\PropertiesController(
 		new Schema\FieldMap( $wpdb ),
 		new Support\OptionNormalizer(),
 		new Support\NumberParser(),
-		new Mapper\LocationMapper(),
+		new Mapper\LocationMapper( new Support\LocationResolver() ),
 		new Mapper\CoordinatesMapper(),
 		new Mapper\MediaMapper( $cccbr_orbitas_id_parser, $cccbr_orbitas_check_media_files ),
 		new Mapper\PeopleMapper(

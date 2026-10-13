@@ -58,6 +58,16 @@ final class IssueCode {
 	public const LOCATION_MISSING = 'location_missing';
 
 	/**
+	 * At least one of province, cantón or distrito could not be determined.
+	 */
+	public const LOCATION_INCOMPLETE = 'location_incomplete';
+
+	/**
+	 * Two terms occupy the same level, or a term's ancestry contradicts another assigned term.
+	 */
+	public const LOCATION_AMBIGUOUS = 'location_ambiguous';
+
+	/**
 	 * The stored coordinates are a JetEngine geocoding error marker.
 	 */
 	public const COORDINATES_GEOCODE_ERROR = 'coordinates_geocode_error';
@@ -137,6 +147,8 @@ final class IssueCode {
 			self::NUMBER_MISSING,
 			self::PRICE_CURRENCY_MISSING,
 			self::LOCATION_MISSING,
+			self::LOCATION_INCOMPLETE,
+			self::LOCATION_AMBIGUOUS,
 			self::COORDINATES_GEOCODE_ERROR,
 			self::COORDINATES_INVALID,
 			self::COORDINATES_STALE,

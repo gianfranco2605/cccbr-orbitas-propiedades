@@ -224,21 +224,37 @@ that re-introduces exactly the ambiguity the endpoint refused to resolve.
 ### 4.7 Location
 
 ```json
-"location": [
-  { "id": 3222, "name": "San José",  "slug": "san-jose",  "level": 1 },
-  { "id": 3301, "name": "Escazú",    "slug": "escazu",    "level": 2 },
-  { "id": 3415, "name": "San Rafael","slug": "san-rafael","level": 3 }
-]
+"location": {
+  "province": { "id": 3222, "name": "San José",  "slug": "san-jose" },
+  "canton":   { "id": 9001, "name": "Santa Ana", "slug": "santa-ana" },
+  "district": { "id": 9002, "name": "Pozos",     "slug": "pozos" }
+}
 ```
 
 Source: taxonomy **`ubicacion-propiedad`** — the only taxonomy the CPT uses.
 
-- Every assigned term is returned **with its full ancestor path**, de-duplicated, ordered by `level`
-  then `name`, so a property assigned only a district still reports its cantón and province.
-- `level`: `1` = provincia, `2` = cantón, `3` = distrito (verified: the 7 root terms are the 7
-  Costa Rican provinces). The taxonomy is exactly 3 levels deep (7 / 82 / 488 terms).
-- `[]` when the property has no location term — **1063 of 3055 properties** — with the issue
-  `location_missing`. A location is never inferred from `map_raw` or from coordinates.
+- **Always an object with exactly these three members.** Each is `{ id, name, slug }` or `null`.
+  Until 0.2.0 this was a flat array of terms carrying a `level` number; naming the levels says what
+  the data is, and the property form confirms it by labelling its three selects
+  **"Provincia / Cantón / Distrito"**. The taxonomy is exactly three levels deep and its seven root
+  terms are the seven provinces of Costa Rica.
+- A member is `null` when the source does not say, **or when the source contradicts itself**.
+- A level not assigned directly is completed from the **ancestry of a deeper assigned term** — a
+  district alone yields its cantón and province, because the taxonomy itself states that
+  relationship. That is reading the data, not guessing, and raises no issue.
+
+**Conflicts are reported, never resolved.** The source does not guarantee one term per level:
+
+| Situation | Result | Issue |
+|---|---|---|
+| no term at all, or no assigned term exists in the taxonomy | all three `null` | `location_missing` |
+| at least one member resolved, at least one `null` | the resolved members | `location_incomplete`, `detail` = the missing members (`"canton,district"`) |
+| two or more terms on the same level (two cantones, say) | that member `null` | `location_ambiguous`, `detail` = the member name |
+| a term whose parent is not the term assigned one level up | the **deeper** member `null`, the assigned shallower one kept | `location_ambiguous`, `detail` = the cleared member |
+| a term deeper than the taxonomy's three levels | not placed | `location_ambiguous`, `detail` = the term id |
+| nothing resolvable after the conflicts | all three `null` | `location_ambiguous` **and** `location_missing` |
+
+A location is never inferred from `map_raw` or from the coordinates.
 
 ### 4.8 Coordinates
 
@@ -311,7 +327,9 @@ is a short machine-oriented string (an id or token), never a sentence and never 
 | `number_unparsable` | a non-empty numeric field could not be parsed at all |
 | `number_missing` | `precio-de-venta` is empty while `operation` includes `Venta` |
 | `price_currency_missing` | a price has a value but `moneda` is empty |
-| `location_missing` | the property has no `ubicacion-propiedad` term |
+| `location_missing` | nothing could be resolved: no term, no known term, or every level lost to a conflict |
+| `location_incomplete` | at least one of province / cantón / distrito is `null` while another resolved. `detail` lists the missing members |
+| `location_ambiguous` | the source contradicts itself — two terms on one level, a term whose ancestry disagrees with another assigned term, or a term deeper than three levels. `detail` names the cleared member or the offending term id |
 | `coordinates_geocode_error` | the stored lat/lng is a `je-coord-error…` marker |
 | `coordinates_invalid` | the stored lat/lng is non-numeric or out of range |
 | `coordinates_stale` | `md5( mapa ) ≠` the stored `_hash` |

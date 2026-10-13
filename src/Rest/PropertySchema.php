@@ -94,17 +94,13 @@ final class PropertySchema {
 				'video_url'             => $this->field( 'string', 'Raw stored value of video_propiedad. Not validated.' ),
 				'map_raw'               => $this->field( 'string', 'Raw stored value of mapa, the string that was geocoded.' ),
 				'location'              => array(
-					'description' => 'Assigned ubicacion-propiedad terms with their full ancestor path. Empty when the property has no location.',
-					'type'        => 'array',
-					'items'       => array(
-						'type'                 => 'object',
-						'additionalProperties' => false,
-						'properties'           => array(
-							'id'    => $this->field( 'integer', 'Term ID.' ),
-							'name'  => $this->field( 'string', 'Term name.' ),
-							'slug'  => $this->field( 'string', 'Term slug.' ),
-							'level' => $this->field( 'integer', '1 = provincia, 2 = canton, 3 = distrito.' ),
-						),
+					'description'          => 'Province, canton and district from the ubicacion-propiedad taxonomy. A member is null when the source does not say, or when two assigned terms contradict each other.',
+					'type'                 => 'object',
+					'additionalProperties' => false,
+					'properties'           => array(
+						'province' => $this->term( 'Level 1 of the taxonomy: provincia.' ),
+						'canton'   => $this->term( 'Level 2 of the taxonomy: canton.' ),
+						'district' => $this->term( 'Level 3 of the taxonomy: distrito.' ),
 					),
 				),
 				'coordinates'           => array(
@@ -310,6 +306,25 @@ final class PropertySchema {
 				'width'     => $this->nullable_field( 'integer', 'Full-size width in pixels.' ),
 				'height'    => $this->nullable_field( 'integer', 'Full-size height in pixels.' ),
 				'alt'       => $this->field( 'string', 'Alternative text.' ),
+			),
+		);
+	}
+
+	/**
+	 * One nullable taxonomy term of the location object.
+	 *
+	 * @param string $description Human description.
+	 * @return array<string, mixed>
+	 */
+	private function term( string $description ): array {
+		return array(
+			'description'          => $description,
+			'type'                 => array( 'object', 'null' ),
+			'additionalProperties' => false,
+			'properties'           => array(
+				'id'   => $this->field( 'integer', 'Term ID.' ),
+				'name' => $this->field( 'string', 'Term name.' ),
+				'slug' => $this->field( 'string', 'Term slug.' ),
 			),
 		);
 	}

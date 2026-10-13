@@ -190,11 +190,11 @@ Synthetic, but every field is present exactly as the endpoint shapes it.
   "video_url": "https://www.youtube.com/watch?v=EXAMPLE",
   "map_raw": "Condominio Example, Santa Ana",
 
-  "location": [
-    { "id": 3222, "name": "San José",  "slug": "san-jose",  "level": 1 },
-    { "id": 9001, "name": "Santa Ana", "slug": "santa-ana", "level": 2 },
-    { "id": 9002, "name": "Pozos",     "slug": "pozos",     "level": 3 }
-  ],
+  "location": {
+    "province": { "id": 3222, "name": "San José",  "slug": "san-jose" },
+    "canton":   { "id": 9001, "name": "Santa Ana", "slug": "santa-ana" },
+    "district": { "id": 9002, "name": "Pozos",     "slug": "pozos" }
+  },
   "coordinates": { "lat": 9.9325, "lng": -84.1835, "source": "jetengine_geocode:mapa" },
 
   "media": {
@@ -253,8 +253,13 @@ Synthetic, but every field is present exactly as the endpoint shapes it.
   numeric. When it is `null` and the source was not empty, the `issues` list carries the reason
   **and the original string** — in the example above, `built_area` is `null` because the source
   holds `180 m2`. See §7.
-- **`location` includes the full path.** Level 1 is the province, 2 the cantón, 3 the distrito. A
-  property assigned only a distrito still arrives with its cantón and province.
+- **`location` names its three levels**: `province`, `canton`, `district`, each `{ id, name, slug }`
+  or `null`. All three members are always present. A property assigned only a distrito still arrives
+  with its cantón and province, because the taxonomy itself states that relationship.
+- **A `null` level means the source is silent or self-contradictory**, never that the endpoint gave
+  up quietly: look for `location_missing`, `location_incomplete` or `location_ambiguous` in
+  `issues`. Two cantones on one property, or a distrito belonging to a different cantón, clear the
+  affected level rather than picking a winner.
 - **`coordinates` are geocoded from the `map_raw` text**, not surveyed — hence the explicit
   `source`. Treat them as approximate.
 - **The featured image can also appear inside the gallery.** That is how the property was saved in
@@ -301,7 +306,8 @@ Plan for these. The counts are measured, not estimated, and come from
 |---|---|---|---|
 | **No Marketplace / Orbitas id anywhere** | all 3055 | `marketplace_id: null` always | Keep your own mapping keyed on the WordPress `id`, which is stable. If you need a round-trip id, CCCBR has to add the field first |
 | **Currency almost never recorded** | only **9** properties have one | `price.currency: null` + `price_currency_missing` | **Never infer** a currency from the amount. Import the price as unknown-currency and ask CCCBR, or agree one default in writing |
-| **No location** | **1063** of 3055 | `location: []` + `location_missing` | Fall back to `map_raw`, which is free text, or leave the listing unplaced |
+| **No location** | **1063** of 3055 | all three members `null` + `location_missing` | Fall back to `map_raw`, which is free text, or leave the listing unplaced |
+| **Partial or conflicting location** | see §8 counts | the affected member `null` + `location_incomplete` / `location_ambiguous` | Import what resolved; a conflict is a cleanup item for CCCBR, not something to resolve on import |
 | **No coordinates** | 2556 have none; a further **108** failed geocoding | `coordinates: null` (+ `coordinates_geocode_error` for the 108) | Geocode on your side from `location` + `map_raw` if you need a pin |
 | **Stale coordinates** | 2 | coordinates **plus** `coordinates_stale` | The address changed after geocoding; re-geocode if precision matters |
 | **Broken image references** | **301** attachment ids that no longer exist, over **334** references on **118** properties | the id is omitted from `gallery` and reported as `media_attachment_missing` | Import the images that resolve; the report tells CCCBR what to re-upload |

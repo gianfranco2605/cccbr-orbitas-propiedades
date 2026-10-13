@@ -1107,3 +1107,51 @@ the data actually means: these exist *because* the property is in the trash.
 | `GET ?status=trash&per_page=50` | **200**; all 50 items have 36 fields and a `trash` object with exactly `historical_slug,status_before_trash,trashed_at_gmt` |
 | `GET ?status=publish&per_page=50` | **200**; all 50 items have 36 fields and `trash: null` |
 | `logs wordpress --tail 40` | **0** entries from this plugin |
+
+## CR1.4 — Location: one named object
+
+### Files changed
+- `src/Support/LocationResolver.php` (**new, pure**) — decides which assigned term is the province,
+  the cantón and the distrito. Groups the terms by taxonomy depth, clears any level holding more
+  than one term, clears the **deeper** level when a term's parent contradicts the term assigned
+  above it, completes a missing level from the **ancestry of a deeper assigned term** (a fact in the
+  taxonomy, not a guess), and reports `location_missing` / `location_incomplete` /
+  `location_ambiguous`. No WordPress, so it is unit-tested.
+- `src/Mapper/LocationMapper.php` — reduced to the WordPress half: read the assigned terms and the
+  taxonomy index, hand both to the resolver, forward its issues. `with_ancestors()` deleted.
+- `src/Support/IssueCode.php` — `LOCATION_INCOMPLETE` and `LOCATION_AMBIGUOUS` added.
+- `src/Rest/PropertySchema.php` — `location` is an object of three nullable `{ id, name, slug }`
+  members; new `term()` helper.
+- `cccbr-orbitas-propiedades.php`, `tools/bootstrap.php` — resolver injected.
+- `tests/unit/LocationResolverTest.php` (new) — **13 tests**: the clean path, order independence, no
+  terms, unknown terms, province only, a distrito completing its own ancestry, two terms on one
+  level, a distrito belonging to another cantón, a cantón from another province, two provinces,
+  a duplicate term, a term deeper than three levels, and that the three members are always present.
+- `docs/contract.md` §4.7 (rewritten, with a conflict table) and the §4.11 issue rows.
+- `postman/…collection.json` — two assertions: the member order and term shape, and that the number
+  of resolved levels is consistent with the issues reported.
+- `docs/consumer-guide.md` — example, two "Reading it" bullets, and a new gap row.
+
+### Why the levels can be named
+The taxonomy is exactly three levels deep, its seven root terms are the seven provinces of Costa
+Rica, and the property form labels its three selects **"Provincia / Cantón / Distrito"**. So depth
+*is* the administrative level, and an anonymous ladder with a `level` number was hiding that.
+
+### The rule that matters
+**A conflict is reported, never resolved.** The source does not guarantee one term per level: a
+property can carry two cantones, or a distrito whose parent is not the cantón also assigned. In both
+cases the affected level becomes `null` and the conflict is reported, because an invented location
+is worse than an absent one.
+
+### Verification
+| Check | Result |
+|---|---|
+| `composer cs` | 0 errors / 0 warnings (3 alignment fixes via `cbf`) |
+| `composer stan` | No errors (level 8) — the new test needed a narrowing helper rather than indexing a nullable |
+| `composer test` | **OK (84 tests, 253 assertions)**, 13 of them new |
+| `GET ?per_page=100` | **200**; `location` always has `province,canton,district` in that order, every non-null term has exactly `id,name,slug` |
+| Resolution on that page | 75 properties with all three levels, 25 with the province only → **25** `location_incomplete`, no ambiguity |
+| `logs wordpress --tail 40` | **0** entries from this plugin |
+
+Whole-dataset counts per location issue code come with the reconciliation re-run at the end of this
+change request.

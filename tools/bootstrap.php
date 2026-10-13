@@ -36,6 +36,7 @@ use ElPuas\CCCBR\OrbitasPropiedades\Rest\PropertiesController;
 use ElPuas\CCCBR\OrbitasPropiedades\Rest\PropertySchema;
 use ElPuas\CCCBR\OrbitasPropiedades\Schema\FieldMap;
 use ElPuas\CCCBR\OrbitasPropiedades\Support\IdListParser;
+use ElPuas\CCCBR\OrbitasPropiedades\Support\LocationResolver;
 use ElPuas\CCCBR\OrbitasPropiedades\Support\NumberParser;
 use ElPuas\CCCBR\OrbitasPropiedades\Support\OptionNormalizer;
 
@@ -82,7 +83,7 @@ if ( ! function_exists( __NAMESPACE__ . '\\cccbr_orbitas_tools_prepare' ) ) {
 				new FieldMap( $wpdb ),
 				new OptionNormalizer(),
 				new NumberParser(),
-				new LocationMapper(),
+				new LocationMapper( new LocationResolver() ),
 				new CoordinatesMapper(),
 				new MediaMapper( $id_parser, $check_files ),
 				new PeopleMapper( new RelationsRepository( $wpdb ), $id_parser )

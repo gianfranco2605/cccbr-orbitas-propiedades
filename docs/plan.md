@@ -74,7 +74,7 @@ payload starts lean and grows only on request. Changes 1–5 are **breaking** fo
 - [x] **CR1.3 — Trash: one field.** Replace `historical_slug`, `status_before_trash` and
   `trashed_at_gmt` with `trash`: `null` unless the property is in the trash, otherwise
   `{ historical_slug, status_before_trash, trashed_at_gmt }`.
-- [ ] **CR1.4 — Location: one object.** Replace the `location` array with
+- [x] **CR1.4 — Location: one object.** Replace the `location` array with
   `{ province, canton, district }`, each `{ id, name, slug }` or `null`. Issues: `location_missing`,
   `location_incomplete`, `location_ambiguous`. Conflicting terms are never resolved by guessing: the
   affected level becomes `null` and the conflict is reported.
