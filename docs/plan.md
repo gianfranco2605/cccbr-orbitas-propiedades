@@ -8,7 +8,7 @@ passes, the box here is checked, `docs/progress.md` has an entry and the work is
   `docs/OPEN-QUESTIONS.md`, `README.md`, `CHANGELOG.md`, `.gitignore`, `composer.json`,
   `phpcs.xml.dist`, `phpstan.neon.dist`, the minimal main plugin file. `composer install`.
   Commit everything including `LOOP_PROMPT.md` and `.claude/settings.json`.
-- [ ] **Task 1 — Schema discovery** → `docs/schema.md`. Re-verify section 4. List **every** meta key on
+- [x] **Task 1 — Schema discovery** → `docs/schema.md`. Re-verify section 4. List **every** meta key on
   `cccbr-propiedades` with counts and classify it (included / excluded + reason). Resolve glossary
   storage, coordinate origin (JetEngine source), relation 171 storage, statuses present.
   Search user meta key names (counts only) for associate number and Marketplace / Orbitas IDs.
