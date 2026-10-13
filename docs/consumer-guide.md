@@ -152,11 +152,9 @@ Synthetic, but every field is present exactly as the endpoint shapes it.
   "id": 123456,
   "title": "Casa en condominio con vista al valle",
   "slug": "casa-en-condominio-con-vista-al-valle",
-  "historical_slug": null,
   "url": "https://camara.cr/propiedad/casa-en-condominio-con-vista-al-valle/",
   "status": "publish",
-  "status_before_trash": null,
-  "trashed_at_gmt": null,
+  "trash": null,
   "created_at_gmt": "2026-02-14T15:04:22Z",
   "modified_at_gmt": "2026-08-01T09:12:51Z",
   "content": "<p>Casa de dos plantas en condominio con seguridad 24/7...</p>",
@@ -242,8 +240,12 @@ Synthetic, but every field is present exactly as the endpoint shapes it.
 
 ### Reading it
 
-- **No field is ever omitted.** A missing value is `null`, `[]`, `false` or `{ "raw": "", "value": null }`,
-  so you can map positionally without existence checks.
+- **No field is ever omitted.** A missing value is `null`, `[]` or `false`, so you can map
+  positionally without existence checks.
+- **`trash` is `null` for anything not in the trash** — which is 2672 of the 3055 properties. When
+  `status` is `trash` it holds `{ historical_slug, status_before_trash, trashed_at_gmt }`. Decide
+  early whether you import trashed properties at all; if you do, `status_before_trash` tells you
+  what they were before someone deleted them.
 - **Classification fields are always arrays** of `{ key, label }` — including `property_type`, which
   holds zero or one entry. Import the `key`; show the `label`. A `label` of `null` means the stored
   token matched no known option and is reported in `issues`; the raw token is still in `key`.

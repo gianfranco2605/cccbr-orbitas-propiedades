@@ -71,7 +71,7 @@ payload starts lean and grows only on request. Changes 1–5 are **breaking** fo
   unparsable non-empty source value yields `null` plus the existing issue
   (`number_ambiguous` / `number_unparsable`) carrying the original raw string in `detail` — the only
   place a raw value now appears. `docs/OPEN-QUESTIONS.md` Q5 → ANSWERED.
-- [ ] **CR1.3 — Trash: one field.** Replace `historical_slug`, `status_before_trash` and
+- [x] **CR1.3 — Trash: one field.** Replace `historical_slug`, `status_before_trash` and
   `trashed_at_gmt` with `trash`: `null` unless the property is in the trash, otherwise
   `{ historical_slug, status_before_trash, trashed_at_gmt }`.
 - [ ] **CR1.4 — Location: one object.** Replace the `location` array with

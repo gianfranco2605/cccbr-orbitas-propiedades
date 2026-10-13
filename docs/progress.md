@@ -1081,3 +1081,29 @@ issue that explains why the number is missing, which is where a consumer looks a
 | `GET ?per_page=100`, type census over all 10 numeric fields | **0** values that are neither a number nor `null`; types are `integer`, `double` or `NULL` only |
 | Raw strings preserved | **16** `number_ambiguous`/`number_unparsable` issues on that page, **all 16** carrying a non-empty string in `detail`, **0** without |
 | `logs wordpress --tail 60` | **0** entries from this plugin |
+
+## CR1.3 — Trash: one nullable object
+
+### Files changed
+- `src/Mapper/PropertyMapper.php` — `historical_slug`, `status_before_trash` and `trashed_at_gmt`
+  are replaced by `trash`, built in a new `map_trash()` that returns `null` unless
+  `post_status === 'trash'`.
+- `src/Rest/PropertySchema.php` — the three fields become one nullable object with the three members.
+- `docs/contract.md` §4.1 — one row instead of three, recording why and keeping the
+  `_wp_desired_post_slug` note.
+- `postman/…collection.json` — expected field list is now **36** entries, plus a new assertion that
+  `trash` is `null` for anything whose status is not `trash` and carries exactly the three members
+  when it is.
+- `docs/consumer-guide.md` — synthetic example and a new "Reading it" bullet.
+
+### Why
+As three top-level fields they were `null` on **2672 of 3055** properties. Grouping them says what
+the data actually means: these exist *because* the property is in the trash.
+
+### Verification
+| Check | Result |
+|---|---|
+| `composer cs` / `stan` / `test` | clean / No errors / OK (71 tests, 195 assertions) |
+| `GET ?status=trash&per_page=50` | **200**; all 50 items have 36 fields and a `trash` object with exactly `historical_slug,status_before_trash,trashed_at_gmt` |
+| `GET ?status=publish&per_page=50` | **200**; all 50 items have 36 fields and `trash: null` |
+| `logs wordpress --tail 40` | **0** entries from this plugin |

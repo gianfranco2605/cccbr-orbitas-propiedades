@@ -108,11 +108,9 @@ Nothing is inferred. When a value is missing, ambiguous or broken, the item says
 | `id` | integer | `wp_posts.ID` | stable WordPress id, the cursor key |
 | `title` | string | `post_title` | raw, unfiltered |
 | `slug` | string | `post_name` | for trashed properties this still carries the `__trashed` suffix (373 of 383) |
-| `historical_slug` | string\|null | `_wp_desired_post_slug` | the slug before trashing; present for all 383 trashed properties, `null` otherwise. Used rather than stripping `__trashed`, because 10 trashed properties have no suffix |
 | `url` | string\|null | `get_permalink()` | `null` when WordPress cannot build one (e.g. trashed). Historical URL for audit, not a guarantee the page resolves |
 | `status` | string | `post_status` | `publish`, `draft` or `trash` in the current data |
-| `status_before_trash` | string\|null | `_wp_trash_meta_status` | only for trashed properties |
-| `trashed_at_gmt` | string\|null | `_wp_trash_meta_time` | Unix timestamp converted to UTC ISO 8601 |
+| `trash` | object\|null | the WordPress trash meta | `null` unless `status` is `trash`. Otherwise `{ "historical_slug", "status_before_trash", "trashed_at_gmt" }`, each a string or `null`. Grouped into one nullable object in 0.2.0: as three top-level fields they were `null` on **2672 of 3055** properties. `historical_slug` comes from `_wp_desired_post_slug`, not from stripping the `__trashed` suffix, because 10 of the 383 trashed properties have no suffix |
 | `created_at_gmt` | string | `post_date_gmt` | UTC ISO 8601. No zero dates exist in the source |
 | `modified_at_gmt` | string | `post_modified_gmt` | UTC ISO 8601. Use it to detect records that changed during a walk (§5) |
 | `content` | string | `post_content` | **raw stored content**. `the_content` filters are never applied, so no shortcode is expanded and no Elementor markup is injected |
