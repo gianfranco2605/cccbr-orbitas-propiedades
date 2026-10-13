@@ -56,8 +56,23 @@ if ( ! function_exists( __NAMESPACE__ . '\\cccbr_orbitas_tools_prepare' ) ) {
 
 		cccbr_orbitas_tools_register_objects();
 
-		$id_parser   = new IdListParser();
-		$check_files = ( 'local' !== wp_get_environment_type() );
+		$id_parser = new IdListParser();
+
+		/*
+		 * The file-existence check is switched **off** for the CLI tools, deliberately and
+		 * regardless of the environment type.
+		 *
+		 * Measured on this replica: an HTTP request reports `wp_get_environment_type() === 'local'`,
+		 * while the same call inside the `wpcli` container reports `'production'` — the two
+		 * containers do not share that piece of configuration. Trusting it here made the
+		 * reconciliation emit 33 219 `media_file_missing` issues for files that the web request
+		 * correctly says nothing about: a false claim produced by a tooling quirk.
+		 *
+		 * These tools exist to reconcile counts, and they can verify a file no better than the web
+		 * path can. Broken attachment *references* are still fully checked, because that needs only
+		 * `wp_posts`.
+		 */
+		$check_files = false;
 
 		$controller = new PropertiesController(
 			new Permissions(),

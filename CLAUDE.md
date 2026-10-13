@@ -79,9 +79,17 @@ Orbitas, delivering data or access to third parties.
 - Not copied (inactive in production): `fancy-elementor-gallery-box`, `jet-form-builder-save-progress`,
   `wp-rest-api-authentication`, `proteger-uploads`, theme `hello-elementor`.
 - Mail blocked by `mu-plugins/000-local-safety.php`; cron disabled; external HTTP blocked; updates and file mods disabled.
-- `wp-content/uploads` is **not** local: every request is redirected (302) to production.
-  **Media file-existence checks cannot be validated locally** — implement them and state the
-  limitation in `docs/progress.md`, `docs/reconciliation.md` and the consumer guide.
+- `wp-content/uploads` is **not** local: the directory exists but holds only ~30
+  plugin-generated files, and every media request is redirected (302) to production.
+  **Media file-existence checks cannot be validated locally** — implemented, with the limitation
+  stated in `docs/progress.md`, `docs/reconciliation.md` and the consumer guide.
+- **The two containers disagree about the environment type.** An HTTP request reports
+  `wp_get_environment_type() === 'local'` (so the plugin correctly skips the media file check),
+  while the same call inside the `wpcli` container reports `'production'` — `WORDPRESS_CONFIG_EXTRA`
+  never reached `wp-config.php`, and the containers do not share that setting. Anything run through
+  `wp eval-file` must therefore **not** branch on the environment type: `tools/bootstrap.php`
+  disables the file check unconditionally and says why. Verified 13 Oct 2026 with a temporary
+  response header.
 
 ### 3.4 Test credentials (local only, already created — never created or changed by us)
 - `orbitas-dev` (ID 1883, `administrator`): gets the capability on activation → expected 200.

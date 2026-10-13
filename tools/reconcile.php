@@ -1,0 +1,567 @@
+<?php
+/**
+ * Reconciles the endpoint's output against the database and prints a Markdown report.
+ *
+ * Run from the plugin directory and redirect the output:
+ *
+ *     docker compose -f ~/Projects/cccbr-replica/compose.yaml run --rm wpcli \
+ *       wp eval-file wp-content/plugins/cccbr-orbitas-propiedades/tools/reconcile.php \
+ *       --path=/var/www/html --skip-plugins --skip-themes > docs/reconciliation.md
+ *
+ * The tool writes nothing itself — it only reads, and prints to stdout — so it can never alter the
+ * data it is checking. It walks the whole collection through `rest_do_request()` as an
+ * administrator, so no HTTP credential is involved.
+ *
+ * Only aggregates, identifiers and booleans are printed. No name, email, phone number or other
+ * personal value is ever read into the report.
+ *
+ * There is deliberately no `declare(strict_types=1)` here: `wp eval-file` strips the opening tag
+ * and evaluates the rest, where a strict-types declaration is no longer the first statement and
+ * PHP rejects it.
+ *
+ * @package ElPuas\CCCBR\OrbitasPropiedades
+ */
+
+namespace ElPuas\CCCBR\OrbitasPropiedades\Tools;
+
+use ElPuas\CCCBR\OrbitasPropiedades\Mapper\LocationMapper;
+use ElPuas\CCCBR\OrbitasPropiedades\Mapper\PeopleMapper;
+use ElPuas\CCCBR\OrbitasPropiedades\Repository\PropertyRepository;
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit( 1 );
+}
+
+require_once __DIR__ . '/bootstrap.php';
+
+/**
+ * Collects the whole collection by walking the endpoint.
+ *
+ * @return array<string, mixed>
+ */
+function cccbr_orbitas_walk(): array {
+	$after     = 0;
+	$pages     = 0;
+	$ids       = array();
+	$by_status = array();
+	$by_author = array();
+	$issues    = array();
+	$seconds   = 0.0;
+	$queries   = 0;
+	$totals    = array();
+	$max_id    = null;
+
+	$with_creator     = 0;
+	$with_associate   = 0;
+	$with_company     = 0;
+	$with_responsible = 0;
+	$with_location    = 0;
+	$with_coordinates = 0;
+	$with_featured    = 0;
+	$with_gallery     = 0;
+	$gallery_images   = 0;
+	$with_expiration  = 0;
+	$origin_wpuf      = 0;
+	$leads_properties = 0;
+	$leads_total      = 0;
+	$contract_photos  = 0;
+
+	do {
+		$result = cccbr_orbitas_tools_request(
+			array(
+				'per_page' => 100,
+				'after_id' => $after,
+			)
+		);
+
+		if ( 200 !== $result['status'] ) {
+			return array( 'error' => 'HTTP ' . $result['status'] . ' at after_id ' . $after );
+		}
+
+		++$pages;
+		$seconds += $result['seconds'];
+		$queries += $result['queries'];
+
+		$body       = $result['body'];
+		$totals     = is_array( $body['totals'] ?? null ) ? $body['totals'] : $totals;
+		$pagination = is_array( $body['pagination'] ?? null ) ? $body['pagination'] : array();
+		$max_id     = $pagination['max_id'] ?? $max_id;
+
+		foreach ( (array) ( $body['data'] ?? array() ) as $property ) {
+			if ( ! is_array( $property ) ) {
+				continue;
+			}
+
+			$ids[] = (int) $property['id'];
+
+			$status               = (string) $property['status'];
+			$by_status[ $status ] = ( $by_status[ $status ] ?? 0 ) + 1;
+
+			if ( is_array( $property['creator'] ) ) {
+				++$with_creator;
+
+				$author               = (int) $property['creator']['id'];
+				$by_author[ $author ] = ( $by_author[ $author ] ?? 0 ) + 1;
+			}
+
+			if ( null !== $property['associate_id'] ) {
+				++$with_associate;
+			}
+
+			if ( is_array( $property['company'] ) ) {
+				++$with_company;
+			}
+
+			if ( is_array( $property['responsible'] ) ) {
+				++$with_responsible;
+			}
+
+			if ( array() !== $property['location'] ) {
+				++$with_location;
+			}
+
+			if ( null !== $property['coordinates'] ) {
+				++$with_coordinates;
+			}
+
+			if ( null !== $property['expiration'] ) {
+				++$with_expiration;
+			}
+
+			if ( 'wp_user_frontend' === $property['origin']['source'] ) {
+				++$origin_wpuf;
+			}
+
+			if ( true === $property['private_documents']['has_contract_photo'] ) {
+				++$contract_photos;
+			}
+
+			if ( null !== $property['media']['featured'] ) {
+				++$with_featured;
+			}
+
+			$gallery = (array) $property['media']['gallery'];
+
+			if ( array() !== $gallery ) {
+				++$with_gallery;
+			}
+
+			$gallery_images += count( $gallery );
+
+			$leads = (int) $property['leads_count'];
+
+			if ( $leads > 0 ) {
+				++$leads_properties;
+				$leads_total += $leads;
+			}
+
+			foreach ( (array) $property['issues'] as $issue ) {
+				if ( ! is_array( $issue ) ) {
+					continue;
+				}
+
+				$code            = (string) $issue['code'];
+				$issues[ $code ] = ( $issues[ $code ] ?? 0 ) + 1;
+			}
+		}
+
+		$has_more = (bool) ( $pagination['has_more'] ?? false );
+		$after    = (int) ( $pagination['next_after_id'] ?? 0 );
+	} while ( $has_more && $pages < 200 );
+
+	return array(
+		'pages'            => $pages,
+		'seconds'          => $seconds,
+		'queries'          => $queries,
+		'ids'              => $ids,
+		'by_status'        => $by_status,
+		'by_author'        => $by_author,
+		'issues'           => $issues,
+		'totals'           => $totals,
+		'max_id'           => $max_id,
+		'with_creator'     => $with_creator,
+		'with_associate'   => $with_associate,
+		'with_company'     => $with_company,
+		'with_responsible' => $with_responsible,
+		'with_location'    => $with_location,
+		'with_coordinates' => $with_coordinates,
+		'with_featured'    => $with_featured,
+		'with_gallery'     => $with_gallery,
+		'gallery_images'   => $gallery_images,
+		'with_expiration'  => $with_expiration,
+		'origin_wpuf'      => $origin_wpuf,
+		'leads_properties' => $leads_properties,
+		'leads_total'      => $leads_total,
+		'contract_photos'  => $contract_photos,
+	);
+}
+
+/**
+ * Reads the same facts straight from the database.
+ *
+ * @return array<string, mixed>
+ */
+function cccbr_orbitas_database_facts(): array {
+	global $wpdb;
+
+	$type = PropertyRepository::POST_TYPE;
+
+	$by_status = array();
+
+	// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- A reconciliation tool must read the database directly and uncached; that is its entire purpose.
+	$rows = $wpdb->get_results(
+		$wpdb->prepare( "SELECT post_status, COUNT(*) AS total FROM {$wpdb->posts} WHERE post_type = %s GROUP BY post_status", $type ),
+		ARRAY_A
+	);
+
+	foreach ( (array) $rows as $row ) {
+		$by_status[ (string) $row['post_status'] ] = (int) $row['total'];
+	}
+
+	$ids = $wpdb->get_col(
+		$wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_type = %s ORDER BY ID ASC", $type )
+	);
+
+	$by_author = array();
+
+	$rows = $wpdb->get_results(
+		$wpdb->prepare( "SELECT post_author, COUNT(*) AS total FROM {$wpdb->posts} WHERE post_type = %s GROUP BY post_author", $type ),
+		ARRAY_A
+	);
+
+	foreach ( (array) $rows as $row ) {
+		$by_author[ (int) $row['post_author'] ] = (int) $row['total'];
+	}
+
+	$single = array(
+		'authors_without_associate'    => $wpdb->prepare(
+			"SELECT COUNT(DISTINCT p.post_author) FROM {$wpdb->posts} p
+				LEFT JOIN {$wpdb->usermeta} um ON um.user_id = p.post_author AND um.meta_key = %s
+				WHERE p.post_type = %s AND ( um.umeta_id IS NULL OR TRIM(um.meta_value) = '' )",
+			PeopleMapper::ASSOCIATE_META_KEY,
+			$type
+		),
+		'properties_without_associate' => $wpdb->prepare(
+			"SELECT COUNT(*) FROM {$wpdb->posts} p
+				LEFT JOIN {$wpdb->usermeta} um ON um.user_id = p.post_author AND um.meta_key = %s
+				WHERE p.post_type = %s AND ( um.umeta_id IS NULL OR TRIM(um.meta_value) = '' )",
+			PeopleMapper::ASSOCIATE_META_KEY,
+			$type
+		),
+		'properties_with_location'     => $wpdb->prepare(
+			"SELECT COUNT(DISTINCT tr.object_id) FROM {$wpdb->term_relationships} tr
+				INNER JOIN {$wpdb->term_taxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id
+				INNER JOIN {$wpdb->posts} p ON p.ID = tr.object_id
+				WHERE tt.taxonomy = %s AND p.post_type = %s",
+			LocationMapper::TAXONOMY,
+			$type
+		),
+		'usable_thumbnails'            => $wpdb->prepare(
+			"SELECT COUNT(*) FROM {$wpdb->postmeta} pm
+				INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+				INNER JOIN {$wpdb->posts} a ON a.ID = CAST(pm.meta_value AS UNSIGNED) AND a.post_type = 'attachment'
+				WHERE p.post_type = %s AND pm.meta_key = '_thumbnail_id' AND pm.meta_value REGEXP '^[0-9]+$'",
+			$type
+		),
+		'numeric_coordinates'          => $wpdb->prepare(
+			"SELECT COUNT(*) FROM {$wpdb->postmeta} pm
+				INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+				WHERE p.post_type = %s AND pm.meta_key = %s AND pm.meta_value NOT LIKE %s",
+			$type,
+			md5( 'mapa' ) . '_lat',
+			$wpdb->esc_like( 'je-coord-error' ) . '%'
+		),
+		'error_coordinates'            => $wpdb->prepare(
+			"SELECT COUNT(*) FROM {$wpdb->postmeta} pm
+				INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+				WHERE p.post_type = %s AND pm.meta_key = %s AND pm.meta_value LIKE %s",
+			$type,
+			md5( 'mapa' ) . '_lat',
+			$wpdb->esc_like( 'je-coord-error' ) . '%'
+		),
+		'with_expiration'              => $wpdb->prepare(
+			"SELECT COUNT(*) FROM {$wpdb->postmeta} pm
+				INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+				WHERE p.post_type = %s AND pm.meta_key = '_jet_pep_period' AND TRIM(pm.meta_value) <> ''",
+			$type
+		),
+		'origin_wpuf'                  => $wpdb->prepare(
+			"SELECT COUNT(*) FROM {$wpdb->postmeta} pm
+				INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+				WHERE p.post_type = %s AND pm.meta_key = '_wpuf_form_id' AND pm.meta_value REGEXP '^[0-9]+$'",
+			$type
+		),
+		'contract_photos'              => $wpdb->prepare(
+			"SELECT COUNT(*) FROM {$wpdb->postmeta} pm
+				INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+				WHERE p.post_type = %s AND pm.meta_key = 'foto-del-contrato'
+					AND pm.meta_value IS NOT NULL AND TRIM(pm.meta_value) <> ''",
+			$type
+		),
+		'leads_properties'             => $wpdb->prepare(
+			"SELECT COUNT(DISTINCT r.parent_object_id) FROM {$wpdb->prefix}jet_rel_171 r
+				INNER JOIN {$wpdb->posts} p ON p.ID = r.parent_object_id AND p.post_type = %s
+				WHERE r.rel_id = '171'",
+			$type
+		),
+		'leads_total'                  => $wpdb->prepare(
+			"SELECT COUNT(*) FROM {$wpdb->prefix}jet_rel_171 r
+				INNER JOIN {$wpdb->posts} p ON p.ID = r.parent_object_id AND p.post_type = %s
+				WHERE r.rel_id = '171'",
+			$type
+		),
+		'properties_with_company'      => $wpdb->prepare(
+			"SELECT COUNT(*) FROM {$wpdb->posts} p
+				INNER JOIN {$wpdb->prefix}jet_rel_131 r ON r.child_object_id = p.post_author AND r.rel_id = '131'
+				WHERE p.post_type = %s",
+			$type
+		),
+	);
+
+	$facts = array(
+		'by_status' => $by_status,
+		'ids'       => array_values( array_map( 'intval', (array) $ids ) ),
+		'by_author' => $by_author,
+	);
+
+	foreach ( $single as $key => $sql ) {
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Every statement in $single was built with $wpdb->prepare() above.
+		$facts[ $key ] = is_string( $sql ) ? (int) $wpdb->get_var( $sql ) : 0;
+	}
+	// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+	return $facts;
+}
+
+/**
+ * Prints one comparison row.
+ *
+ * @param string $label    What is being compared.
+ * @param int    $api      Value the endpoint reported.
+ * @param int    $database Value the database holds.
+ * @param string $note     Optional explanation.
+ * @return bool Whether the two agree.
+ */
+function cccbr_orbitas_row( string $label, int $api, int $database, string $note = '' ): bool {
+	$ok = ( $api === $database );
+
+	printf(
+		"| %s | %d | %d | %s | %s |\n",
+		$label,
+		$api,
+		$database,
+		$ok ? '✅' : '❌',
+		'' === $note ? ( $ok ? 'match' : 'DIFFERENT' ) : $note
+	);
+
+	return $ok;
+}
+
+/**
+ * Runs the reconciliation and prints the report.
+ *
+ * @return void
+ */
+function cccbr_orbitas_reconcile(): void {
+	cccbr_orbitas_tools_prepare();
+
+	if ( 0 === cccbr_orbitas_tools_login_as_admin() ) {
+		echo "No administrator user found: cannot run the reconciliation.\n";
+
+		return;
+	}
+
+	$walk = cccbr_orbitas_walk();
+
+	if ( isset( $walk['error'] ) ) {
+		printf( "The walk failed: %s\n", (string) $walk['error'] );
+
+		return;
+	}
+
+	$db = cccbr_orbitas_database_facts();
+
+	$api_ids = (array) $walk['ids'];
+	$db_ids  = (array) $db['ids'];
+
+	$api_unique = array_values( array_unique( $api_ids ) );
+	$sorted     = $api_unique;
+	sort( $sorted, SORT_NUMERIC );
+
+	$missing = array_values( array_diff( $db_ids, $api_unique ) );
+	$extra   = array_values( array_diff( $api_unique, $db_ids ) );
+
+	$checks = array();
+
+	printf( "# Reconciliation — `GET /wp-json/cccbr-orbitas/v1/propiedades`\n\n" );
+	printf(
+		"Produced by `tools/reconcile.php` on **%s UTC**, against the local replica.\n",
+		gmdate( 'Y-m-d H:i:s' )
+	);
+	echo "The tool walks the whole collection through `rest_do_request()` as an administrator, then\n";
+	echo "reads the same facts straight from the database and compares them. It writes nothing, and\n";
+	echo "reports only counts, identifiers and booleans — never a personal value.\n\n";
+
+	printf( "## 1. The walk\n\n" );
+	printf( "| Measure | Value |\n|---|---|\n" );
+	printf( "| Pages walked (`per_page=100`) | %d |\n", (int) $walk['pages'] );
+	printf( "| Properties returned | %d |\n", count( $api_ids ) );
+	printf( "| Distinct ids returned | %d |\n", count( $api_unique ) );
+	printf( "| Duplicate ids | %d |\n", count( $api_ids ) - count( $api_unique ) );
+	printf( "| Ids in ascending order across the whole walk | %s |\n", $api_ids === $sorted ? 'yes' : '**no**' );
+	printf( "| `pagination.max_id` reported | %s |\n", null === $walk['max_id'] ? 'null' : (string) (int) $walk['max_id'] );
+	printf( "| Database queries for the whole walk | %d |\n", (int) $walk['queries'] );
+	printf( "| Time inside the endpoint | %.2f s |\n\n", (float) $walk['seconds'] );
+
+	printf( "## 2. Totals and unique ids\n\n" );
+	printf( "| Check | Endpoint | Database | | Note |\n|---|---|---|---|---|\n" );
+
+	$checks[] = cccbr_orbitas_row( 'Properties in total', count( $api_unique ), count( $db_ids ) );
+	$checks[] = cccbr_orbitas_row( 'Ids present in the database but missing from the walk', count( $missing ), 0, count( $missing ) > 0 ? '**omissions**' : 'no omissions' );
+	$checks[] = cccbr_orbitas_row( 'Ids returned that do not exist in the database', count( $extra ), 0, count( $extra ) > 0 ? '**phantoms**' : 'no phantoms' );
+	$checks[] = cccbr_orbitas_row( 'Duplicate ids in the walk', count( $api_ids ) - count( $api_unique ), 0, 0 === count( $api_ids ) - count( $api_unique ) ? 'no duplicates' : '**duplicates**' );
+
+	/*
+	 * `totals.by_status` is cast to an object by the controller so it serializes as `{}` rather
+	 * than `[]` when empty. `rest_do_request()` hands back the raw PHP value, not JSON, so it
+	 * arrives here as a stdClass and has to be cast back.
+	 */
+	$api_totals = (array) ( $walk['totals']['by_status'] ?? array() );
+
+	echo "\n### By status\n\n";
+	printf( "| Status | Endpoint (walked) | Endpoint (`totals`) | Database | | \n|---|---|---|---|---|\n" );
+
+	$statuses = array_unique( array_merge( array_keys( (array) $walk['by_status'] ), array_keys( (array) $db['by_status'] ) ) );
+	sort( $statuses );
+
+	foreach ( $statuses as $status ) {
+		$walked   = (int) ( $walk['by_status'][ $status ] ?? 0 );
+		$reported = (int) ( $api_totals[ $status ] ?? 0 );
+		$actual   = (int) ( $db['by_status'][ $status ] ?? 0 );
+		$ok       = ( $walked === $actual && $reported === $actual );
+
+		$checks[] = $ok;
+
+		printf( "| `%s` | %d | %d | %d | %s |\n", $status, $walked, $reported, $actual, $ok ? '✅' : '❌' );
+	}
+
+	echo "\n### By author\n\n";
+
+	$api_authors = (array) $walk['by_author'];
+	$db_authors  = (array) $db['by_author'];
+	$mismatched  = 0;
+
+	foreach ( $db_authors as $author => $count ) {
+		if ( (int) ( $api_authors[ $author ] ?? 0 ) !== (int) $count ) {
+			++$mismatched;
+		}
+	}
+
+	printf( "| Check | Endpoint | Database | | Note |\n|---|---|---|---|---|\n" );
+	$checks[] = cccbr_orbitas_row( 'Distinct authors', count( $api_authors ), count( $db_authors ) );
+	$checks[] = cccbr_orbitas_row( 'Authors whose property count differs', $mismatched, 0, 0 === $mismatched ? 'every author\'s count matches' : '**mismatch**' );
+
+	echo "\n## 3. Field-level reconciliation\n\n";
+	printf( "| Check | Endpoint | Database | | Note |\n|---|---|---|---|---|\n" );
+
+	$checks[] = cccbr_orbitas_row( 'Properties with a creator', (int) $walk['with_creator'], count( $db_ids ), 'every property has an existing author' );
+	$checks[] = cccbr_orbitas_row( 'Properties without an `associate_id`', count( $db_ids ) - (int) $walk['with_associate'], (int) $db['properties_without_associate'] );
+	$checks[] = cccbr_orbitas_row( 'Properties with a company', (int) $walk['with_company'], (int) $db['properties_with_company'] );
+	$checks[] = cccbr_orbitas_row( 'Properties with a location', (int) $walk['with_location'], (int) $db['properties_with_location'] );
+	$checks[] = cccbr_orbitas_row( 'Properties with coordinates', (int) $walk['with_coordinates'], (int) $db['numeric_coordinates'] );
+	$checks[] = cccbr_orbitas_row( 'Properties with a featured image', (int) $walk['with_featured'], (int) $db['usable_thumbnails'] );
+	$checks[] = cccbr_orbitas_row( 'Properties with an expiration', (int) $walk['with_expiration'], (int) $db['with_expiration'] );
+	$checks[] = cccbr_orbitas_row( 'Properties from WP User Frontend', (int) $walk['origin_wpuf'], (int) $db['origin_wpuf'] );
+	$checks[] = cccbr_orbitas_row( 'Properties with a contract photo', (int) $walk['contract_photos'], (int) $db['contract_photos'] );
+	$checks[] = cccbr_orbitas_row( 'Properties with at least one lead', (int) $walk['leads_properties'], (int) $db['leads_properties'] );
+	$checks[] = cccbr_orbitas_row( 'Leads counted in total', (int) $walk['leads_total'], (int) $db['leads_total'] );
+
+	printf( "| Gallery images returned | %d | — | — | informational |\n", (int) $walk['gallery_images'] );
+	printf( "| Properties with a non-empty gallery | %d | — | — | informational |\n", (int) $walk['with_gallery'] );
+	printf( "| Properties with a responsible associate | %d | — | — | the source field is empty on all five properties that carry it |\n", (int) $walk['with_responsible'] );
+
+	echo "\n## 4. Pagination integrity\n\n";
+
+	$first  = cccbr_orbitas_tools_request(
+		array(
+			'per_page' => 50,
+			'after_id' => 100000,
+		)
+	);
+	$second = cccbr_orbitas_tools_request(
+		array(
+			'per_page' => 50,
+			'after_id' => 100000,
+		)
+	);
+
+	$first_ids  = array_column( (array) ( $first['body']['data'] ?? array() ), 'id' );
+	$second_ids = array_column( (array) ( $second['body']['data'] ?? array() ), 'id' );
+
+	$past_end = cccbr_orbitas_tools_request(
+		array(
+			'per_page' => 100,
+			'after_id' => 99999999,
+		)
+	);
+
+	printf( "| Check | Result |\n|---|---|\n" );
+	printf( "| The same cursor requested twice returns the same page | %s |\n", $first_ids === $second_ids ? '✅ identical' : '❌ different' );
+	printf( "| Page past the end is empty | %s |\n", array() === (array) ( $past_end['body']['data'] ?? array() ) ? '✅ empty' : '❌ not empty' );
+	printf( "| Page past the end reports `has_more` | %s |\n", false === ( $past_end['body']['pagination']['has_more'] ?? null ) ? '✅ false' : '❌ true' );
+
+	/*
+	 * `next_after_id` is legitimately null here, so `??` cannot be used to detect its absence —
+	 * it would substitute the fallback for the very value being checked. The key's presence is
+	 * tested separately from its value.
+	 */
+	$past_end_pagination = (array) ( $past_end['body']['pagination'] ?? array() );
+	$cursor_is_null      = array_key_exists( 'next_after_id', $past_end_pagination )
+		&& null === $past_end_pagination['next_after_id'];
+
+	printf( "| Page past the end reports `next_after_id` | %s |\n", $cursor_is_null ? '✅ null' : '❌ not null' );
+
+	$checks[] = ( $first_ids === $second_ids );
+
+	echo "\n## 5. Data-quality issues reported by the endpoint\n\n";
+
+	$issues = (array) $walk['issues'];
+	ksort( $issues );
+
+	printf( "| Code | Occurrences |\n|---|---|\n" );
+
+	foreach ( $issues as $code => $count ) {
+		printf( "| `%s` | %d |\n", (string) $code, (int) $count );
+	}
+
+	echo "\nThese describe the **source data**, not endpoint failures: every property is still\n";
+	echo "returned in full. See `docs/contract.md` §4.11 for what each code means.\n";
+
+	echo "\n## 6. Limitations of this run\n\n";
+	echo "- **Media file existence is not checked here.** `wp-content/uploads` on the replica holds no\n";
+	echo "  media and every request redirects to production, so the check is switched off for these\n";
+	echo "  tools — unconditionally, because the `wpcli` container reports a different\n";
+	echo "  `wp_get_environment_type()` than an HTTP request does, and trusting it produced tens of\n";
+	echo "  thousands of false `media_file_missing` issues. Broken attachment *references* are fully\n";
+	echo "  checked and reported, since that needs only `wp_posts`.\n";
+	echo "- Other plugins are not loaded (`--skip-plugins`), so the query counts are this plugin's own.\n";
+	echo "  The post type and location taxonomy are registered minimally by `tools/bootstrap.php`.\n";
+	echo "- `totals` is a per-request snapshot. On a quiet replica it is stable across the walk; on a\n";
+	echo "  live site it can drift, which is why the checks above compare **unique ids**, not only counts.\n";
+
+	$failed = count( array_filter( $checks, static fn( bool $ok ): bool => ! $ok ) );
+
+	printf( "\n## 7. Verdict\n\n" );
+	printf( '**%d of %d checks passed.**', count( $checks ) - $failed, count( $checks ) );
+
+	if ( 0 === $failed ) {
+		echo " The endpoint returns every property in the source exactly once, and every\n";
+		echo "field-level count agrees with the database.\n";
+
+		return;
+	}
+
+	printf( " **%d check(s) disagree and need investigation.**\n", $failed );
+}
+
+cccbr_orbitas_reconcile();

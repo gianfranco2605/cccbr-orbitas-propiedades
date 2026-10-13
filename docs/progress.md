@@ -789,3 +789,70 @@ object cache can only do better.
   `rest_do_request()`, compare totals and unique ids with the database by status and by author,
   and check creator → associate on a sample and on the whole set. Output to
   `docs/reconciliation.md`, aggregates only.
+
+---
+
+## 2026-10-13 — Task 11 — Reconciliation tool
+
+### Files changed
+- `tools/reconcile.php` (new) — walks the whole collection through `rest_do_request()` as an
+  administrator, then reads the same facts straight from the database and compares them. It
+  **writes nothing**: the report goes to stdout, so the tool can never alter the data it is
+  checking. Only counts, identifiers and booleans are printed.
+- `tools/bootstrap.php` — the media file-existence check is now switched off for the CLI tools
+  unconditionally (see the finding below).
+- `docs/reconciliation.md` (new) — the generated report, produced with
+  `… wp eval-file tools/reconcile.php … > docs/reconciliation.md`.
+- `CLAUDE.md` §3.3 — records the container environment-type discrepancy.
+- `phpcs.xml.dist` had nothing to change; the tool's own SQL now binds its `LIKE` wildcards.
+
+### Result: **21 of 21 checks passed**
+
+| Group | Checks |
+|---|---|
+| Totals and unique ids | 3055 returned = 3055 in the database; **0** ids missing from the walk, **0** returned that do not exist, **0** duplicates; ascending across the whole walk |
+| By status | `publish` 2612, `draft` 60, `trash` 383 — walked, reported in `totals`, and in the database, all three agreeing |
+| By author | 250 distinct authors both sides; **0** authors whose property count differs |
+| Field level | creator 3055, missing `associate_id` 25, company 448, location 1992, coordinates 391, featured image 2994, expiration 541, WPUF origin 2512, contract photo 133, properties with leads 20, leads 24 — **every one matching the database** |
+| Pagination | same cursor twice → identical page; past the end → empty page, `has_more: false`, `next_after_id: null` |
+
+The walk itself: 31 pages, **381 queries** and **6.7 s** inside the endpoint for the whole 3055
+properties (≈ 12 queries per page, consistent with Task 10).
+
+### Finding: the two containers disagree about the environment type
+The first run reported **33 219** `media_file_missing` issues. That was not a data problem and not
+an endpoint bug — it was the tool trusting `wp_get_environment_type()`:
+
+- over **HTTP** the value is `local`, so the plugin correctly skips the file check (verified with a
+  temporary response header, since removed);
+- inside the **`wpcli`** container the same call returns `production`, because
+  `WORDPRESS_CONFIG_EXTRA` from `compose.yaml` never reached `wp-config.php` (confirmed: the file
+  mentions neither `WP_ENVIRONMENT_TYPE` nor `DISABLE_WP_CRON`).
+
+So the CLI tools must not branch on the environment type at all. `tools/bootstrap.php` now disables
+the file check unconditionally, with the reason in the code, and the generated report states it.
+`CLAUDE.md` §3.3 records the discrepancy so a later session does not rediscover it. Broken
+attachment **references** are still fully checked — that needs only `wp_posts`.
+
+### Two bugs in the tool, found by reading its own output
+1. `totals.by_status` is cast to an object by the controller so it serializes as `{}`; over
+   `rest_do_request()` it arrives as a `stdClass`, and an `is_array()` guard silently read zeros.
+   The by-status column showed 0/0/0 against the database's real figures. Fixed with a cast.
+2. The "past the end returns `next_after_id: null`" check used `?? 'x'` to detect absence, which
+   substitutes the fallback for a value that is *legitimately* null — so a correct response was
+   reported as a failure. Now the key's presence is tested separately from its value.
+
+Both were in the checker, not in the endpoint; the endpoint's behaviour had already been verified
+over HTTP in Task 5.
+
+### Commands run
+| Command | Result |
+|---|---|
+| `composer lint` / `cs` / `stan` / `test` | clean; **OK (71 tests, 195 assertions)** |
+| `wp eval-file tools/reconcile.php … --skip-plugins --skip-themes` | the report above, **21/21** |
+| `wp eval 'echo wp_get_environment_type()'` in `wpcli` | `production` |
+| temporary `X-Cccbr-Debug-Env` response header over HTTP | `local` (header then removed) |
+| `wp eval` grep of `wp-config.php` for the two constants | both absent |
+
+### Open points carried into Task 12
+- Postman collection with the test cases, plus the same cases run with `curl` and recorded.
