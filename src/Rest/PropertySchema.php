@@ -44,8 +44,8 @@ final class PropertySchema {
 						'trashed_at_gmt'      => $this->nullable_field( 'string', 'UTC ISO 8601 moment of trashing, from _wp_trash_meta_time.' ),
 					),
 				),
-				'created_at_gmt'        => $this->field( 'string', 'UTC ISO 8601 creation date, from post_date_gmt.' ),
-				'modified_at_gmt'       => $this->field( 'string', 'UTC ISO 8601 modification date, from post_modified_gmt.' ),
+				'created_at_gmt'        => $this->nullable_field( 'string', 'UTC ISO 8601 creation date, from post_date_gmt. Null for a zero date.' ),
+				'modified_at_gmt'       => $this->nullable_field( 'string', 'UTC ISO 8601 modification date, from post_modified_gmt. Null for a zero date.' ),
 				'content'               => $this->field( 'string', 'Raw stored post_content. Content filters are never applied.' ),
 				'description_en'        => $this->field( 'string', 'Raw stored value of descripcion-en-ingles.' ),
 				'expiration'            => array(

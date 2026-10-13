@@ -111,8 +111,8 @@ Nothing is inferred. When a value is missing, ambiguous or broken, the item says
 | `url` | string\|null | `get_permalink()` | `null` when WordPress cannot build one (e.g. trashed). Historical URL for audit, not a guarantee the page resolves |
 | `status` | string | `post_status` | `publish`, `draft` or `trash` in the current data |
 | `trash` | object\|null | the WordPress trash meta | `null` unless `status` is `trash`. Otherwise `{ "historical_slug", "status_before_trash", "trashed_at_gmt" }`, each a string or `null`. Grouped into one nullable object in 0.2.0: as three top-level fields they were `null` on **2672 of 3055** properties. `historical_slug` comes from `_wp_desired_post_slug`, not from stripping the `__trashed` suffix, because 10 of the 383 trashed properties have no suffix |
-| `created_at_gmt` | string | `post_date_gmt` | UTC ISO 8601. No zero dates exist in the source |
-| `modified_at_gmt` | string | `post_modified_gmt` | UTC ISO 8601. Use it to detect records that changed during a walk (§5) |
+| `created_at_gmt` | string\|null | `post_date_gmt` | UTC ISO 8601. `null` for a zero date (`0000-00-00 00:00:00`) — absence is `null` here as everywhere else in the contract. No zero dates exist in the source today |
+| `modified_at_gmt` | string\|null | `post_modified_gmt` | UTC ISO 8601, `null` for a zero date. Use it to detect records that changed during a walk (§5) |
 | `content` | string | `post_content` | **raw stored content**. `the_content` filters are never applied, so no shortcode is expanded and no Elementor markup is injected |
 | `description_en` | string | `descripcion-en-ingles` | raw stored wysiwyg value; `""` when absent (2739 of 3055 properties have the key) |
 | `expiration` | object\|null | `_jet_pep_period`, `_jet_pep_action` | `{ "at_gmt": "<UTC ISO 8601>", "action": "draft" }`, or `null` when the property has no expiration (541 of 3055 do). `action` is `draft` for all 541 today |

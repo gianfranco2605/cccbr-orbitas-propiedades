@@ -609,12 +609,16 @@ final class PropertyMapper {
 	/**
 	 * Converts a MySQL GMT datetime to the contract's ISO 8601 form.
 	 *
+	 * A zero date (`0000-00-00 00:00:00`) is **absence**, so it becomes `null` like every other
+	 * missing value in the contract — not `""`, which a consumer would have to special-case. None
+	 * exist in the source today; this is what happens if one ever appears.
+	 *
 	 * @param string $mysql_date Datetime as stored, already in UTC.
-	 * @return string Empty string for a zero date (none exist in the source today).
+	 * @return string|null
 	 */
-	private function mysql_to_iso( string $mysql_date ): string {
+	private function mysql_to_iso( string $mysql_date ): ?string {
 		if ( '' === $mysql_date || 0 === strpos( $mysql_date, '0000-00-00' ) ) {
-			return '';
+			return null;
 		}
 
 		return str_replace( ' ', 'T', $mysql_date ) . 'Z';

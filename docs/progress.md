@@ -1187,3 +1187,23 @@ need action.
 | `GET ?per_page=100` | **200**; `option_value_normalized` **absent**; classification entries still exactly `key,label` |
 | Codes still reported on that page | `location_incomplete` 25, `media_attachment_missing` 31, `price_currency_missing` 95, `number_ambiguous` 11, `number_unparsable` 5, `number_missing` 2, `option_value_unmapped` 3, `media_gallery_empty` 3 |
 | `logs wordpress --tail 30` | **0** entries from this plugin |
+
+## CR1.6 — Dates: `null` for a zero date
+
+### Files changed
+- `src/Mapper/PropertyMapper.php` — `mysql_to_iso()` returns `?string` and yields `null` instead of
+  `""` for `0000-00-00 00:00:00`, with the reasoning in the docblock.
+- `src/Rest/PropertySchema.php` — `created_at_gmt` and `modified_at_gmt` are nullable.
+- `docs/contract.md` §4.1 — both rows updated.
+
+### Why
+Absence is `null` everywhere else in this contract. Returning `""` for a date made these two fields
+the single exception a consumer would have to special-case, for a situation that does not even occur
+in the data. Found in Gianfranco's code review, not by a test — no zero date exists in the source,
+so nothing was failing.
+
+### Verification
+| Check | Result |
+|---|---|
+| `composer cs` / `stan` / `test` | clean / No errors / OK (84 tests, 250 assertions) |
+| `GET ?per_page=100` | **200**; both date fields are `string` on all 100 properties, and **no** empty-string date appears — the real data has no zero dates, so the change is latent by design |
