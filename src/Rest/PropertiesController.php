@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace ElPuas\CCCBR\OrbitasPropiedades\Rest;
 
 use ElPuas\CCCBR\OrbitasPropiedades\Auth\Permissions;
+use ElPuas\CCCBR\OrbitasPropiedades\Mapper\PropertyMapper;
 use ElPuas\CCCBR\OrbitasPropiedades\Pagination\Cursor;
 use ElPuas\CCCBR\OrbitasPropiedades\Repository\PropertyRepository;
 use WP_Error;
@@ -61,16 +62,30 @@ final class PropertiesController {
 	private PropertyRepository $repository;
 
 	/**
+	 * Property mapper.
+	 *
+	 * @var PropertyMapper
+	 */
+	private PropertyMapper $mapper;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Permissions        $permissions Authorization service.
 	 * @param PropertySchema     $schema      Response schema provider.
 	 * @param PropertyRepository $repository  Property data source.
+	 * @param PropertyMapper     $mapper      Property mapper.
 	 */
-	public function __construct( Permissions $permissions, PropertySchema $schema, PropertyRepository $repository ) {
+	public function __construct(
+		Permissions $permissions,
+		PropertySchema $schema,
+		PropertyRepository $repository,
+		PropertyMapper $mapper
+	) {
 		$this->permissions = $permissions;
 		$this->schema      = $schema;
 		$this->repository  = $repository;
+		$this->mapper      = $mapper;
 	}
 
 	/**
@@ -116,9 +131,9 @@ final class PropertiesController {
 
 		$items = array();
 
-		foreach ( $cursor->ids() as $id ) {
-			// Task 6 replaces this stub with the mapped property object.
-			$items[] = array( 'id' => $id );
+		foreach ( $this->repository->find_posts( $cursor->ids(), $args ) as $post ) {
+			$meta    = get_post_meta( $post->ID );
+			$items[] = $this->mapper->map( $post, is_array( $meta ) ? $meta : array() );
 		}
 
 		$response = new WP_REST_Response(

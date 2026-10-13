@@ -74,7 +74,12 @@ global $wpdb;
 $cccbr_orbitas_controller = new Rest\PropertiesController(
 	new Auth\Permissions(),
 	new Rest\PropertySchema(),
-	new Repository\PropertyRepository( $wpdb )
+	new Repository\PropertyRepository( $wpdb ),
+	new Mapper\PropertyMapper(
+		new Schema\FieldMap( $wpdb ),
+		new Support\OptionNormalizer(),
+		new Support\NumberParser()
+	)
 );
 
 ( new Plugin( __FILE__, $cccbr_orbitas_controller ) )->register();

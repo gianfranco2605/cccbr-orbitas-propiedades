@@ -19,7 +19,7 @@ passes, the box here is checked, `docs/progress.md` has an entry and the work is
 - [x] **Task 4 — Route, permissions, argument validation**: empty, correctly shaped response. Verify 401, 403, 400, 200.
 - [x] **Task 5 — Repository and keyset pagination** with all statuses, `status` filter and totals.
   Walk all IDs: count equals the DB count, no duplicates.
-- [ ] **Task 6 — Core fields and meta mapping** (typed values, labels, empty vs missing, price, currency, features, trash fields).
+- [x] **Task 6 — Core fields and meta mapping** (typed values, labels, empty vs missing, price, currency, features, trash fields).
 - [ ] **Task 7 — Location, coordinates, expiration, origin.**
 - [ ] **Task 8 — Media** (featured, ordered gallery, derivatives, issues).
 - [ ] **Task 9 — People and relations**: creator, responsible, company, associate / Marketplace IDs, lead count, missing authors.

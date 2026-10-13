@@ -286,7 +286,7 @@ Source: taxonomy **`ubicacion-propiedad`** — the only taxonomy the CPT uses.
 | `responsible` | object\|null | `corredor_asignado` (user id) | same shape; `null` when unset or equal to the creator. **`null` for every property today** — all 5 stored values are empty |
 | `company` | object\|null | JetEngine relation **131** (`wp_jet_rel_131`), parent of the creator | `{ "id": int, "display_name": string }`. **448 properties** resolve a company; the other 2607 get `null`. The relation has no child under two parents, so the lookup is unambiguous |
 | `associate_id` | string\|null | user meta **`numero-de-asociado`** of the creator | the CCCBR associate number (1623 users have it). `null` + issue `associate_id_missing` when absent. See Q4 in `docs/OPEN-QUESTIONS.md` |
-| `marketplace_id` | null | **no source exists** | always `null` + issue `marketplace_id_no_source`. A key-name search across all user and post meta found no Marketplace / Orbitas / Azure field. The Wasi CRM keys are a different system and `wasi_token` is a credential — nothing is inferred from them |
+| `marketplace_id` | null | **no source exists** | always `null`, with no per-property issue (§4.11). A key-name search across all user and post meta found no Marketplace / Orbitas / Azure field. The Wasi CRM keys are a different system and `wasi_token` is a credential — nothing is inferred from them |
 | `leads_count` | integer | `COUNT(*)` on `wp_jet_rel_171` by `parent_object_id` (and `rel_id = 171`) | 21 properties have leads today. **No lead data is exposed**, only the count |
 | `origin` | object | `_wpuf_form_id` | `{ "source": "wp_user_frontend"\|"unknown", "wpuf_form_id": int\|null }`. 2512 properties → form `9536`; **540 have no origin marker at all** and report `source: "unknown"` + issue `origin_unknown`. JetFormBuilder leaves no per-post marker, so its authorship is never claimed |
 | `private_documents` | object | `foto-del-contrato`, `documentos-anexos` | `{ "has_contract_photo": bool, "has_attachments": bool }` — **booleans only, never the files or ids**. True for 133 and 0 properties respectively (953 of the 1089 `foto-del-contrato` rows hold `NULL`) |
@@ -324,8 +324,12 @@ is a short machine-oriented string (an id or token), never a sentence and never 
 | `creator_missing` | `post_author` points at a user that does not exist |
 | `responsible_missing_user` | `corredor_asignado` points at a user that does not exist |
 | `associate_id_missing` | the creator has no `numero-de-asociado` |
-| `marketplace_id_no_source` | always — there is no Marketplace id field in the source |
 | `origin_unknown` | no `_wpuf_form_id` and no other origin marker |
+
+There is deliberately **no** `marketplace_id` issue code. `marketplace_id` is `null` for every
+property because the field does not exist anywhere in the source (§4.10), and an issue identical on
+all 3055 records would be noise in the consumer's log rather than information about a property.
+The absence is documented here and in the consumer guide instead.
 
 `issues` describes **this property's data**, not a request error. A property with issues is still
 returned in full.
@@ -510,4 +514,4 @@ Each change is required by a measurement in `docs/schema.md`; none of them touch
 | `pagination: { per_page, after_id, next_after_id, has_more }` | plus **`max_id`** | gives the consumer a cheap snapshot boundary for a multi-hour walk; it costs nothing (same aggregate query as `totals`) and only adds a field (§5.2) |
 | `associate_id` "from a real source field" | user meta `numero-de-asociado` | the only real source; flagged as Q4 because it is user meta |
 | `marketplace_id` "from a real source field, else `null`" | always `null` | no such field exists anywhere in the source (§4.10) |
-| `issues`: "machine-readable codes" | the fixed 22-code list in §4.11, each `{ code, field, detail }` | needed a concrete, stable enumeration to be consumable |
+| `issues`: "machine-readable codes" | the fixed 21-code list in §4.11, each `{ code, field, detail }` | needed a concrete, stable enumeration to be consumable |

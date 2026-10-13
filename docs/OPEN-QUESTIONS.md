@@ -73,8 +73,9 @@ non-numeric values, including the four `number`-typed ones, and that values like
 and `^-?\d+\.\d{1,2}$`; ambiguous and unparsable values give `value: null` plus an `issues` code,
 with the raw string always preserved.
 
-**If Orbitas wants flat numbers instead**, they lose the 170-odd values that cannot be parsed
-safely. That is an import decision, not a technical one.
+**If Orbitas wants flat numbers instead**, they lose the **436** values that cannot be parsed
+safely (329 ambiguous + 107 unparsable, measured across the ten fields). That is an import
+decision, not a technical one.
 
 ---
 

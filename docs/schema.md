@@ -173,28 +173,39 @@ every select/checkbox field —
 `precio-final-de-venta` as text that "may hold non-numeric values". **Measured: every one of the ten
 numeric-ish fields contains non-numeric values, including the four `number`-typed ones.**
 
-| Field | Rows | Empty string | Plain numeric | **Non-numeric** |
-|---|---|---|---|---|
-| `precio-de-venta` | 3055 | 521 | 2466 | **68** |
-| `terreno` | 3055 | 431 | 2561 | **63** |
-| `construccion` | 3055 | 930 | 2104 | **21** |
-| `precio-de-alquiler` | 3055 | 2539 | 510 | **6** |
-| `ano-de-construccion` | 3055 | 2021 | 1031 | **3** |
-| `precio-final-de-venta` | 1032 | 1018 | 12 | **2** |
-| `garage` | 3055 | 1105 | 1948 | **2** |
-| `habitaciones` | 3055 | 1090 | 1963 | **2** |
-| `plantas` | 3055 | 1451 | 1602 | **2** |
-| `banos` | 3055 | 965 | 2088 | **2** |
+> **Correction (same day).** The first version of this table under-counted, because the MySQL
+> string literal `'^-?[0-9]+(\.[0-9]+)?$'` collapses `\.` to `.`, which in a regular expression
+> matches *any* character — so values like `150,000` and `350 m2` were counted as numeric. The
+> table below is the re-measurement with `\\.`, and it is the one the implementation reconciles
+> against. Every figure here was cross-checked against the live endpoint (`docs/progress.md`,
+> Task 6).
 
-Shapes of the non-numeric values (classified by pattern, values never printed):
+Classified exactly the way `Support\NumberParser` classifies (see `docs/contract.md` §4.5):
 
-| Shape | Where it appears |
-|---|---|
-| thousands separated by **dot** (`150.000`) | `precio-de-venta` 41, `terreno` 5, `precio-de-alquiler` 1, `construccion` 1 |
-| thousands separated by **comma** (`150,000`) | `terreno` 29, `precio-de-venta` 5, `construccion` 1, `precio-final-de-venta` 1 |
-| digits with units or symbols (`350 m2`, `$120k`) | 44 rows across 9 fields |
-| no digits at all | 12 rows across 8 fields |
-| other mixed (ranges, two numbers, notes) | 30 rows, mostly `construccion` and `terreno` |
+| Field | Rows | Empty / blank | Exact integer | Exact decimal (1–2 places) | **Ambiguous separators** | **Unparsable** |
+|---|---|---|---|---|---|---|
+| `terreno` | 3055 | 431 | 2280 | 181 | **132** | **31** |
+| `precio-de-venta` | 3055 | 521 | 2393 | 9 | **102** | **30** |
+| `construccion` | 3055 | 930 | 1942 | 96 | **63** | **24** |
+| `precio-de-alquiler` | 3055 | 2539 | 499 | 4 | **5** | **8** |
+| `ano-de-construccion` | 3055 | 2021 | 1030 | 0 | 0 | **4** |
+| `garage` | 3055 | 1105 | 1947 | 0 | 0 | **3** |
+| `banos` | 3055 | 965 | 1730 | 333 | **25** | **2** |
+| `habitaciones` | 3055 | 1090 | 1963 | 0 | 0 | **2** |
+| `plantas` | 3055 | 1451 | 1602 | 0 | 0 | **2** |
+| `precio-final-de-venta` | 1032 | 1018 | 11 | 0 | **2** | **1** |
+| **Total** | — | — | — | — | **329** | **107** |
+
+- **Ambiguous separators** are values made only of digits, dots and commas whose convention cannot
+  be determined: `150.000`, `150,000`, `1.250,75`. **68** of them are a dot followed by exactly
+  three decimals — the shape a Spanish thousands separator produces — which is precisely why a
+  "looks like a decimal number" test is not safe here.
+- **Unparsable** values carry units, symbols, ranges or words (`350 m2`, `$120k`, `2 a 3`,
+  `consultar`).
+- `banos` holds 333 genuine half-bathroom decimals (`2.5`), so decimals must be supported, which is
+  what makes the three-decimal case ambiguous rather than simply wrong.
+- Every one of the ten fields has unparsable values, including the four JetEngine declares as
+  `number`.
 
 **Consequence (decided here, implemented in Task 6):** every numeric-ish field is exposed as
 `{ "raw": "<stored string>", "value": <number|null> }`. A number is produced **only** for
@@ -434,7 +445,7 @@ is used.
 | meta box has **28** fields | **29** | documentation only |
 | "glossary 12 / 15 / 11" (read as counts) | those are glossary **ids**; entry counts are 15 / 3 / 14 | documentation only |
 | checkbox values **are** serialized arrays | six shapes incl. pipe-joined strings and literal `false` | **drives the tolerant normalizer** (§2.2) |
-| only `terreno`, `construccion`, `ano-de-construccion`, `precio-final-de-venta` may be non-numeric | **all ten** numeric-ish fields contain non-numeric values | **drives `{raw, value}` for all ten** (§2.4) |
+| only `terreno`, `construccion`, `ano-de-construccion`, `precio-final-de-venta` may be non-numeric | **all ten** numeric-ish fields contain non-numeric values: **107** unparsable and **329** ambiguous values in total | **drives `{raw, value}` for all ten** (§2.4) |
 | `imagenes` is a serialized array of id strings | serialized array **and** comma-separated list **and** single value **and** `NULL` | **drives the gallery parser** (§6) |
 | `_thumbnail_id` on **2993 of 3049** | 2998 rows / 2994 usable ids, of 3055 posts | counts corrected |
 | `_jet_pep_*` on **533** | **541** | counts corrected |

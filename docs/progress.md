@@ -388,3 +388,102 @@ still be read through WordPress APIs with primed caches (Tasks 6–9).
 - Replace the `{ id }` stubs with the mapped property object: core fields, the tolerant option
   normalizer, the `{ raw, value }` numbers, currency, and the trash fields, with cache priming
   (`update_meta_cache`) so a page of 100 costs no N+1 queries.
+
+---
+
+## 2026-10-13 — Task 6 — Core fields and meta mapping
+
+### Files changed
+- `src/Support/IssueCode.php` (new) — the closed set of `issues` codes as constants.
+- `src/Support/IssueCollector.php` (new) — per-property issue list, de-duplicating identical triples.
+- `src/Support/NumberParser.php` (new, pure) — parses a number **only** for `^-?\d+$` and
+  `^-?\d+\.\d{1,2}$`; everything else is `empty`, `ambiguous` or `unparsable`, raw always kept.
+- `src/Support/OptionNormalizer.php` (new, pure) — the 7-step normalizer: unserialize/flatten,
+  split on `|`, drop junk (`false`, `true`, `-`, `-1`), then resolve by exact key → exact label →
+  folded label → slugified label, keeping unmapped tokens verbatim with `label: null`. Accent
+  folding is implemented locally (no `remove_accents()`) so the class stays WordPress-free.
+- `src/Schema/FieldMap.php` (new) — option sets read from the **live** configuration: the
+  `jet_engine_meta_boxes` option plus the JetEngine glossary rows, memoized per request. Uses the
+  `%i` identifier placeholder (WordPress 6.2+) so the glossary statement stays a literal string,
+  and probes for the JetEngine table first so a deactivated JetEngine yields empty option sets
+  instead of a database error inside the JSON.
+- `src/Mapper/PropertyMapper.php` (new) — builds the contract object for identity, lifecycle,
+  classification, price, features, text fields and `private_documents`. Allow-listed throughout: it
+  asks for the keys it knows and never iterates the meta array.
+- `src/Repository/PropertyRepository.php` — added `find_posts()`, which loads a page through
+  `get_posts()` with the post, meta and term caches primed in bulk. `post_status` is the explicit
+  list because `'any'` silently drops `trash`, and `suppress_filters` stays true so no other plugin
+  can narrow an export the ticket requires to be complete.
+- `src/Rest/PropertiesController.php`, `cccbr-orbitas-propiedades.php` — wiring.
+- `tests/unit/NumberParserTest.php`, `tests/unit/OptionNormalizerTest.php` (new) — 39 new tests over
+  the storage shapes measured in Task 1.
+- `docs/schema.md` §2.4 **corrected** (see below), §10 updated; `docs/OPEN-QUESTIONS.md` Q5 figures
+  updated; `docs/contract.md` §4.10/§4.11 updated (21 codes, no `marketplace_id` issue).
+
+### Two defects found by verifying against the live data, not by reading the code
+
+**1. `get_post_meta( $id )` does not unserialize.** With no `$meta_key`, `get_metadata_raw()`
+returns the raw meta cache, unlike a single-key read. The first full walk therefore reported
+`a:1:{i:0;s:5:"Venta";}` as an *unmapped token* — 3333 unmapped occurrences, `sold` on 426
+properties instead of 86. Fixed in `PropertyMapper::first()` with `maybe_unserialize()`, with the
+reason in the docblock so it cannot be "simplified" away later. After the fix every aggregate
+matches the database exactly (table below).
+
+**2. `docs/schema.md` §2.4 was under-counting.** The Task 1 query used the MySQL literal
+`'^-?[0-9]+(\.[0-9]+)?$'`, where `\.` collapses to `.` — "any character" — so `150,000` and
+`350 m2` were counted as numeric. Re-measured with `\\.`: **329 ambiguous** and **107 unparsable**
+values across the ten fields, not 171 non-numeric. §2.4 now carries the corrected table, a note
+about the escaping error, and the parser's own classification.
+
+### Whole-dataset verification: API output vs database
+
+Walked all 31 pages and aggregated the 3055 mapped objects (counts only, no personal values).
+
+| Measure | Database (`docs/schema.md`) | API | |
+|---|---|---|---|
+| items returned | 3055 | **3055** | ✅ |
+| `operation` token `Venta` | 2595 | **2595** | ✅ |
+| `operation` token `Alquiler` | 508 | **508** | ✅ |
+| `operation` token `opciondecompra` | 10 + 14 variant spellings | **24** | ✅ |
+| properties with `sold` | 86 | **86** | ✅ |
+| properties with `share` | 954 | **954** | ✅ |
+| properties with `exclusivity` | 2517 − 1230 empty − 3 `a:0:{}` = 1284 | **1284** | ✅ |
+| `currency` | `Colones` 7, `Dólares` 2 | **7 / 2** | ✅ |
+| `has_contract_photo` | 133 | **133** | ✅ |
+| `has_attachments` | 0 | **0** | ✅ |
+| trashed properties with `historical_slug` | 383 | **383** | ✅ |
+| non-empty feature values | 13392 | **13392** | ✅ |
+| feature values parsed to a number | 13104 | **13106** | ✅ +2: the parser trims, so two space-padded integers parse that the SQL regex rejected |
+| `number_ambiguous` occurrences | 329 | **329** | ✅ |
+| `number_unparsable` occurrences | 107 | **105** | ✅ −2: the same two space-padded values |
+| `land_use` tokens | keys/labels/folded variants of the four options | `usoresidencial` 2496, `usocomercial` 609, `usoagricola` 246, `usoindustrial` 51 | ✅ all four resolved |
+| **unmapped tokens left in the whole dataset** | `lote_residencial_/_comercial` 59, `uso mixto` 1 | **exactly those two, 60 occurrences** | ✅ |
+| `option_value_normalized` | — | 367 occurrences (folded spellings) | — |
+| `price_currency_missing` | 3055 − 9 with a currency, of those that have an amount | 2840 | — |
+| `title_name_mismatch` | — | **0** — the five `nombre-de-propiedad` values never contradict `post_title` | — |
+| `property_type` empty | 1 (the `-1` placeholder, dropped as junk) | **1** | ✅ |
+| `operation` empty | 6 empty + 1 `false \| false \| false` | **7** | ✅ |
+
+The two genuinely unmapped tokens are reported, never guessed: `lote_residencial_/_comercial` has
+no counterpart in glossary 12, and `uso mixto` none among the four `uso-de-suelo` options.
+
+### Commands run
+| Command | Result |
+|---|---|
+| `composer lint` | no syntax errors (21 files) |
+| `composer cs` | **0 errors / 0 warnings** |
+| `composer stan` | **No errors** (level 8, 21 files) |
+| `composer test` | **OK (49 tests, 137 assertions)** |
+| Full walk, aggregated twice (before and after the unserialize fix) | table above |
+| `logs wordpress --tail 600` | **0** entries from this plugin after 62 page requests — **VERIFIED** |
+
+### Decision recorded
+`marketplace_id` no longer carries a per-property issue code. It is `null` on all 3055 records
+because the field does not exist in the source, and an issue identical on every record is noise in
+the consumer's log rather than information about a property. The absence is documented in
+`docs/contract.md` §4.10 and §4.11 instead, and `IssueCode` is down to **21** codes.
+
+### Still placeholders (by task boundary, visible in the response)
+`expiration`, `location`, `coordinates` and `origin` (Task 7); `media` (Task 8); `creator`,
+`responsible`, `company`, `associate_id`, `leads_count` (Task 9). Each is marked in
+`PropertyMapper::map()` with the task that fills it.

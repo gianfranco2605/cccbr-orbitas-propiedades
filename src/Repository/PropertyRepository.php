@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace ElPuas\CCCBR\OrbitasPropiedades\Repository;
 
 use ElPuas\CCCBR\OrbitasPropiedades\Rest\QueryArgs;
+use WP_Post;
 use wpdb;
 
 /**
@@ -85,6 +86,51 @@ final class PropertyRepository {
 		$ids = $this->wpdb->get_col( $sql );
 
 		return array_values( array_map( 'intval', $ids ) );
+	}
+
+	/**
+	 * Loads the posts of one page, with the post, meta and term caches primed in bulk.
+	 *
+	 * This is `WP_Query` territory, so it uses `get_posts()` rather than SQL. Two defaults matter:
+	 * `post_status` is the explicit list, because `'any'` silently drops `trash`; and
+	 * `suppress_filters` stays at the `get_posts()` default of true, so no other plugin or theme
+	 * can narrow an export that the ticket requires to be complete.
+	 *
+	 * @param array     $ids  Ascending property IDs.
+	 * @param QueryArgs $args Validated request arguments.
+	 * @return list<WP_Post> Posts in the same ascending ID order.
+	 *
+	 * @phpstan-param list<int> $ids
+	 */
+	public function find_posts( array $ids, QueryArgs $args ): array {
+		if ( array() === $ids ) {
+			return array();
+		}
+
+		$posts = get_posts(
+			array(
+				'post_type'              => self::POST_TYPE,
+				'post_status'            => $args->statuses(),
+				'post__in'               => $ids,
+				'orderby'                => 'ID',
+				'order'                  => 'ASC',
+				'posts_per_page'         => count( $ids ),
+				'no_found_rows'          => true,
+				'ignore_sticky_posts'    => true,
+				'update_post_meta_cache' => true,
+				'update_post_term_cache' => true,
+			)
+		);
+
+		$found = array();
+
+		foreach ( $posts as $post ) {
+			if ( $post instanceof WP_Post ) {
+				$found[] = $post;
+			}
+		}
+
+		return $found;
 	}
 
 	/**
