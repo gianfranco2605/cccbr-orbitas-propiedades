@@ -165,3 +165,51 @@ material ones are items 1, 2, 4 and 6 above.
 - Gallery id → attachment integrity, broken references (Task 8).
 - Media **file** existence: impossible on the replica (`uploads` 302-redirects to production) — Q3.
 - Queries per page and timing (Task 10); full-walk reconciliation (Task 11).
+
+---
+
+## 2026-10-13 — Task 2 — Contract
+
+### Files changed
+- `docs/contract.md` (new) — route/auth/permissions, the three request args with their constraints,
+  the full collection envelope, the property object field by field (type, nullability, source key),
+  the 7-step option normalizer, the `{ raw, value }` number rule, the 22 `issues` codes, pagination
+  and the consistency mechanism, the error table, guarantees/non-guarantees, a source→contract map,
+  and a table of every change against the `LOOP_PROMPT.md` §6 sketch with its reason.
+- `docs/plan.md`, `docs/progress.md` — Task 2 checked and logged.
+
+### Decisions taken in the contract (all traceable to a Task 1 measurement)
+1. **`{ raw, value }` for all ten numeric fields** (3 prices + 7 features). Numbers are produced
+   only for `^-?\d+$` and `^-?\d+\.\d{1,2}$`; `150.000` and `150,000` are ambiguous →
+   `value: null` + `number_ambiguous`, raw always preserved. → Q5.
+2. **Classification fields are always arrays of `{ key, label }`**, `property_type` included, with a
+   documented resolution order (exact key → exact label → folded label → slugified label) and
+   `{ key: "<raw token>", label: null }` + `option_value_unmapped` when nothing matches. No label is
+   ever guessed, no raw token dropped.
+3. **`pagination.max_id` added** to the envelope — a cheap snapshot boundary for a long walk
+   (same aggregate query as `totals`); purely additive.
+4. **`status` accepts the six real statuses**, rejects `auto-draft` and `inherit` with 400, and
+   defaults to all. Statuses present today: `publish` 2612, `trash` 383, `draft` 60.
+5. **`per_page` above 100 is a 400, never a silent clamp**, so a consumer cannot believe it is
+   walking in pages of 500.
+6. **Error codes are stable and prefixed** (`cccbr_orbitas_invalid_per_page`,
+   `…_invalid_after_id`, `…_invalid_status`, `…_not_authenticated`, `…_forbidden`,
+   `…_unexpected`); consumers match on `code`, never on the translated `message`.
+7. **`issues` is a fixed 22-code enumeration** of `{ code, field, detail }` — `detail` is an id or
+   token, never a sentence and never personal data.
+8. **Consistency mechanism documented**: keyset on the primary key cannot shift rows across page
+   boundaries, `has_more` is computed by reading one row beyond the page (not from `totals`), the
+   same cursor returns the same page, and the snapshot recipe is "record `max_id` + `generated_at`
+   from the first page, ignore `id > max_id`".
+9. **No contract field is ever omitted** — a missing value is `null` / `[]` / `false` /
+   `{ raw: "", value: null }` — so Orbitas can rely on a fixed item shape.
+
+### Verification
+Documentation-only task: nothing to lint or run. `composer cs`, `stan`, `test` were last green at
+Task 0 and no PHP changed. Every count quoted in the contract is copied from `docs/schema.md`,
+which records the query that produced it.
+
+### Open points carried into Task 3
+- Implement the skeleton (`Plugin`, `Lifecycle\Activator`, `uninstall.php`), activate on the
+  replica with `--skip-plugins --skip-themes`, confirm the capability on `administrator` and that
+  the logs stay clean.

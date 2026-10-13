@@ -12,7 +12,7 @@ passes, the box here is checked, `docs/progress.md` has an entry and the work is
   `cccbr-propiedades` with counts and classify it (included / excluded + reason). Resolve glossary
   storage, coordinate origin (JetEngine source), relation 171 storage, statuses present.
   Search user meta key names (counts only) for associate number and Marketplace / Orbitas IDs.
-- [ ] **Task 2 — Contract** → `docs/contract.md`: route, method, auth, permissions, args, every field
+- [x] **Task 2 — Contract** → `docs/contract.md`: route, method, auth, permissions, args, every field
   (type, nullability, source key), pagination, limits, errors, consistency mechanism.
 - [ ] **Task 3 — Skeleton and lifecycle**: autoload, `Plugin`, activator, `uninstall.php`. Activate
   locally (§3.2), confirm the capability and no errors in the logs.
