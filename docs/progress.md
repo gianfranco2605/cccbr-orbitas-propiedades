@@ -856,3 +856,61 @@ over HTTP in Task 5.
 
 ### Open points carried into Task 12
 - Postman collection with the test cases, plus the same cases run with `curl` and recorded.
+
+---
+
+## 2026-10-13 — Task 12 — Postman collection
+
+### Files changed
+- `postman/cccbr-orbitas-propiedades.postman_collection.json` (new) — Postman v2.1 collection:
+  **21 requests, 62 assertions**, in six folders. It contains **no credentials**: HTTP Basic is
+  configured at collection level from `{{username}}` / `{{app_password}}`, and the overview explains
+  that those belong in a Postman *environment*, which `.gitignore` already excludes
+  (`/postman/*.postman_environment.json`).
+- `docs/plan.md`, `docs/progress.md`.
+
+| Folder | Requests | What it proves |
+|---|---|---|
+| Shape | 3 | the envelope's four members, the five pagination members, `per_page` honoured, strictly ascending ids, `next_after_id` = last id of the page, `generated_at` as UTC ISO 8601, `by_status` summing to `total`, **all 38 property fields present on every item**, `{raw, value}` on all ten numeric fields, `{key, label}` on all seven classification fields, and the status filter narrowing both data and totals |
+| Full walk | 3 | a request that **loops over itself** through the whole collection with the keyset cursor, asserting on every page that each id is above the cursor and that the walk's final count equals `totals.total`; plus the past-the-end page and a filter matching nothing |
+| Consistency | 3 | the same cursor twice returns byte-identical ids, and the first page is unchanged after the walk |
+| Limits and invalid arguments | 7 | `per_page` 101 / `abc` / `0`, `after_id=-1`, `status=auto-draft`, `status=publish,bogus` all 400 with the right nested code, and `per_page=100` accepted |
+| Authentication and authorization | 3 | 401 without credentials, 403 with a valid Application Password but no capability, and a POST that the route refuses |
+| Privacy | 2 | a recursive scan of a 100-property page for 40 forbidden key names, the people allow-list, `private_documents` as booleans, `leads_count` as a number — plus `OPTIONS` publishing the schema |
+
+### The one case that cannot be automated
+"A record added during the walk" needs a property to be created mid-walk, so the collection
+documents it as a three-step manual procedure and automates the half that can be checked: after the
+walk, re-reading the first page must return exactly the same ids, because a new property always
+gets a **higher** id and therefore appears at the end of the walk instead of displacing a row.
+`pagination.max_id` from the first page is the documented way to pin the snapshot.
+
+### The same cases run with `curl` — all pass
+
+| # | Case | Result |
+|---|---|---|
+| 01 | first page, `per_page=10` | 200; envelope ok; 10 items; ascending; **38 fields**; `next_after_id` = last id; `generated_at` ISO |
+| 02 | `by_status` sums to `total` | 3055 = 3055 |
+| 03 | `status=publish` | 200; only `publish` in data and in `by_status` |
+| 04 | `status=publish,draft` | 200; `by_status` keys `draft,publish` |
+| 05 | past the end | 200; `data: []`; `has_more: false`; `next_after_id: null`; `total` still 3055 |
+| 06 | `status=pending` (no matches) | 200; `data: []`; `total: 0`; `by_status: {}`; `max_id: null` |
+| 07 | `per_page=100` | 200; 100 items |
+| 08 | `per_page=101` / `abc` / `0` | 400, `data.details.per_page.code = cccbr_orbitas_invalid_per_page` |
+| 08 | `after_id=-1` | 400, `data.details.after_id.code = cccbr_orbitas_invalid_after_id` |
+| 08 | `status=auto-draft`, `status=publish,bogus` | 400, `data.details.status.code = cccbr_orbitas_invalid_status` |
+| 09 | no credentials | **401**, `cccbr_orbitas_not_authenticated`, no property data in the body |
+| 10 | credentials without the capability | **403**, `cccbr_orbitas_forbidden`, no property data in the body |
+| 11 | `POST` to the route | **404 `rest_no_route`** — only a readable method is registered |
+| 12 | same cursor twice | identical id lists |
+| 13 | `OPTIONS` | 200; schema `cccbr_orbitas_propiedades_collection`; args `per_page,after_id,status`; `per_page.maximum = 100` |
+| 14 | privacy scan of a 100-property page | 93 distinct keys, **0** of the 40 forbidden names; people objects exactly `id/display_name/email` (company without email); `private_documents` booleans; `leads_count` an integer |
+
+### Fixed while verifying
+The collection's "every property carries the full field set" assertion listed **37** fields; the
+real item has **38**. `location` was missing from the list. Found by running the same check with
+`curl` rather than by assuming the assertion was right, and corrected in the collection.
+
+### Open points carried into Task 13
+- Security review: scan the code, docs, tests and sample responses for secrets and personal data,
+  and confirm the allow-list from the code side as well as from the response side.

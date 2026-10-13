@@ -29,7 +29,7 @@ passes, the box here is checked, `docs/progress.md` has an entry and the work is
   as an administrator, so no HTTP credentials are needed). Compare totals and unique IDs with the DB,
   by status and by author; check creator → associate on a sample and on the whole set.
   Output → `docs/reconciliation.md` (aggregates only).
-- [ ] **Task 12 — Postman collection** `postman/cccbr-orbitas-propiedades.postman_collection.json`
+- [x] **Task 12 — Postman collection** `postman/cccbr-orbitas-propiedades.postman_collection.json`
   (variables for base URL and credentials, no secrets) with tests: first page, multiple pages,
   last page, zero results, `per_page` limit, invalid args, same cursor twice = same page, record added
   during the walk (manual step documented), 401, 403, no secret-like keys in the response.
