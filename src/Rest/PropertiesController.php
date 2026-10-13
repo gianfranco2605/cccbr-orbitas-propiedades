@@ -129,11 +129,23 @@ final class PropertiesController {
 		$cursor    = new Cursor( $args->per_page(), $this->repository->find_page_ids( $args ) );
 		$aggregate = $this->repository->aggregate( $args );
 
+		$posts      = $this->repository->find_posts( $cursor->ids(), $args );
+		$meta_by_id = array();
+
+		foreach ( $posts as $post ) {
+			$meta = get_post_meta( $post->ID );
+
+			$meta_by_id[ $post->ID ] = is_array( $meta ) ? $meta : array();
+		}
+
+		// Load everything the whole page references in bulk before mapping anything, so no
+		// property triggers a query of its own.
+		$this->mapper->prime( $meta_by_id );
+
 		$items = array();
 
-		foreach ( $this->repository->find_posts( $cursor->ids(), $args ) as $post ) {
-			$meta    = get_post_meta( $post->ID );
-			$items[] = $this->mapper->map( $post, is_array( $meta ) ? $meta : array() );
+		foreach ( $posts as $post ) {
+			$items[] = $this->mapper->map( $post, $meta_by_id[ $post->ID ] );
 		}
 
 		$response = new WP_REST_Response(

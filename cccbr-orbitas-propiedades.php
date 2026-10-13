@@ -71,6 +71,14 @@ register_activation_hook(
  */
 global $wpdb;
 
+/*
+ * Verifying that an attachment's file exists is only meaningful where the uploads directory is the
+ * real one. On a local replica every uploads request is redirected to production, so the check
+ * would report every file as missing; reporting nothing is the honest answer there.
+ * See docs/OPEN-QUESTIONS.md Q3.
+ */
+$cccbr_orbitas_check_media_files = ( 'local' !== wp_get_environment_type() );
+
 $cccbr_orbitas_controller = new Rest\PropertiesController(
 	new Auth\Permissions(),
 	new Rest\PropertySchema(),
@@ -80,10 +88,11 @@ $cccbr_orbitas_controller = new Rest\PropertiesController(
 		new Support\OptionNormalizer(),
 		new Support\NumberParser(),
 		new Mapper\LocationMapper(),
-		new Mapper\CoordinatesMapper()
+		new Mapper\CoordinatesMapper(),
+		new Mapper\MediaMapper( new Support\IdListParser(), $cccbr_orbitas_check_media_files )
 	)
 );
 
 ( new Plugin( __FILE__, $cccbr_orbitas_controller ) )->register();
 
-unset( $cccbr_orbitas_controller );
+unset( $cccbr_orbitas_controller, $cccbr_orbitas_check_media_files );

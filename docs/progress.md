@@ -547,3 +547,78 @@ the consumer's log rather than information about a property. The absence is docu
 | `composer stan` | **No errors** (level 8, 24 files) |
 | `composer test` | **OK (59 tests, 162 assertions)** |
 | Full walk + aggregation | table above |
+
+---
+
+## 2026-10-13 — Task 8 — Media
+
+### Files changed
+- `src/Support/IdListParser.php` (new, pure) — parses the three `imagenes` shapes (serialized
+  array, comma-separated list, single id) and nested combinations, preserves gallery order,
+  collapses duplicates, treats `0` as "nothing selected", and returns non-id tokens **separately**
+  so they are reported rather than dropped. `first_id()` also reads JetEngine's `both` format
+  (`{ id, url }`) used by `imagen-principal`.
+- `src/Mapper/MediaMapper.php` (new) — `prime()` loads **every attachment of a whole page in one
+  query** before any property is mapped; `map()` resolves `media.featured` (from `_thumbnail_id`,
+  falling back to `imagen-principal`) and the ordered `media.gallery`, builds derivative URLs from
+  the attachment metadata (no query per size), and reports broken references.
+- `src/Mapper/PropertyMapper.php` — gained `prime()`, which the controller calls once per page;
+  `media` is now real.
+- `src/Rest/PropertiesController.php` — collects the page's meta, primes, then maps.
+- `cccbr-orbitas-propiedades.php` — wiring, including the file-check flag.
+- `tests/unit/IdListParserTest.php` (new) — 12 tests over every measured shape.
+- `docs/schema.md` §3.1, §5, §6, §10, §11 — corrected and extended (below).
+
+### Design decision: the file-existence check is environment-gated
+`media_file_missing` is implemented, but it only runs where `wp_get_environment_type()` is not
+`local`. On this replica `wp-content/uploads` exists yet holds only 28 plugin-generated files and
+every media request 302-redirects to production, so running the check would report **every** file
+as missing — a false claim. The plugin cannot distinguish "file deleted" from "library not present
+in this environment", so where it cannot know, it says nothing. The flag is a constructor argument,
+not an internal `wp_get_environment_type()` call, so both branches are unit-testable and the
+decision is visible at the composition root. Recorded against Q3.
+
+### Whole-dataset verification (31 pages, 3055 properties, 25 s)
+
+| Measure | Database | API | |
+|---|---|---|---|
+| properties with a featured image | 2994 usable `_thumbnail_id` values | **2994** | ✅ |
+| properties without one | 3055 − 2994 = 61 | **61** (`media_featured_missing`) | ✅ |
+| properties with a non-empty gallery | — | 2968 | — |
+| properties with an empty gallery | — | 87 (`media_gallery_empty`) | — |
+| gallery images returned | — | **30225** | — |
+| **gallery tokens that were not ids** | — | **0** | ✅ this is the empirical proof that the 899 comma-separated rows, the 2092 serialized arrays and the 26 single-id rows hold nothing but ids |
+| **broken attachment references** | `SELECT COUNT(*) FROM wp_posts WHERE ID IN (<the 301 ids>)` → **0** | **301 distinct ids, 334 references, 118 properties** — all from `imagenes`, none from `_thumbnail_id` | ✅ genuinely broken, correctly reported and excluded from the gallery |
+| attachment objects with no URL | — | **0** | — |
+| attachments with no dimensions | — | **12, all `image/heic`** (WordPress produces no metadata for HEIC) | — |
+| attachment objects with no derivatives | — | 16 | — |
+| mime types returned | — | jpeg 30682, png 2305, webp 201, heic 23, avif 8 | — |
+| `media_file_missing` | not verifiable here | **0** — check skipped in a `local` environment, by design | — |
+
+Spot-checked property **184589** against the third-party export Gianfranco had run earlier: same
+featured attachment (**184582**) and the same six gallery attachments in the same order, with ids,
+mime type, dimensions and derivatives added. The old plugin's output was used only as an external
+cross-check; nothing about it changed this contract.
+
+### Correction to `docs/schema.md` §5 — coordinate counts were off by one
+The authoritative query (`GROUP BY meta_key` over the three coordinate keys, one row per property,
+no duplicates) returns **499** properties with coordinate meta, of which **108** hold a
+`je-coord-error…` marker and **391** are numeric — not 498 / 107 as Task 1 recorded. The API's
+geocode-error set was diffed id-for-id against the database and matches exactly (`only in API: 0`,
+`only in DB: 0`), and 391 + 108 = 499. `docs/schema.md` §3.1, §5 and §10 now carry the corrected
+figures, and the Task 7 entry above should be read with **108** rather than 107.
+
+### Commands run
+| Command | Result |
+|---|---|
+| `composer lint` | no syntax errors (26 files) |
+| `composer cs` | **0 errors / 0 warnings** (one sniff conflict resolved by moving the environment comment out of the constructor call) |
+| `composer stan` | **No errors** (level 8, 26 files) |
+| `composer test` | **OK (71 tests, 195 assertions)** |
+| Full walk `per_page=100` | 31 pages, **25 s** with media mapped (14 s without, Task 5) |
+| Missing-id cross-check | `SELECT COUNT(*) FROM wp_posts WHERE ID IN (301 ids)` → **0** |
+
+### Open points carried into Task 9
+- People and relations: creator, responsible, company through relation 131, `associate_id` from
+  `numero-de-asociado`, lead count from `wp_jet_rel_171`, and bulk user priming through the same
+  `prime()` hook so the page still costs no N+1 queries.

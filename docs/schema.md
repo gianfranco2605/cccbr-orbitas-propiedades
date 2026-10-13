@@ -229,9 +229,9 @@ properties carrying the key. Nothing on the CPT is omitted from this table.
 | `_thumbnail_id` | 2998 | `media.featured` | 2994 integer ids (all pointing at a real `attachment`, **VERIFIED**), **4 rows with a `NULL` value** |
 | `_jet_pep_period` | 541 | `expiration.at_gmt` | Unix timestamps, all numeric; range `2026-12-22 14:54:57` … `2027-04-11 03:23:05` UTC |
 | `_jet_pep_action` | 541 | `expiration.action` | single value `draft` for all 541 |
-| `4437ad177c1679b1090c78835bb6c221_lat` | 498 | `coordinates.lat` | see §5 |
-| `4437ad177c1679b1090c78835bb6c221_lng` | 498 | `coordinates.lng` | see §5 |
-| `4437ad177c1679b1090c78835bb6c221_hash` | 498 | staleness check only | see §5 |
+| `4437ad177c1679b1090c78835bb6c221_lat` | 499 | `coordinates.lat` | see §5 |
+| `4437ad177c1679b1090c78835bb6c221_lng` | 499 | `coordinates.lng` | see §5 |
+| `4437ad177c1679b1090c78835bb6c221_hash` | 499 | staleness check only | see §5 |
 | `_wp_desired_post_slug` | 383 | `historical_slug` | trashed posts only |
 | `_wp_trash_meta_status` | 383 | `status_before_trash` | trashed posts only |
 | `_wp_trash_meta_time` | 383 | `trashed_at_gmt` | Unix timestamp |
@@ -329,9 +329,9 @@ Two measured hazards:
 
 | Measurement | Value | Handling |
 |---|---|---|
-| `…_lat` holding a **geocoding error marker** (`je-coord-error…`, prefix from `lat-lng.php:12`) | **107 of 498** | `coordinates: null` + `coordinates_geocode_error` issue. Never exposed as a value |
-| `…_lat` holding a plain number | 391 of 498 | validated like JetEngine does: numeric and \|lat\| ≤ 90, \|lng\| ≤ 180 |
-| `…_hash` **≠** `md5( mapa )` → cache is stale for the current address | **7 of 498**, of which **5 also hold an error marker** and only **2** have usable coordinates | the 5 are reported as `coordinates_geocode_error` (there is nothing to return); the 2 are returned with a `coordinates_stale` issue |
+| `…_lat` holding a **geocoding error marker** (`je-coord-error…`, prefix from `lat-lng.php:12`) | **108 of 499** | `coordinates: null` + `coordinates_geocode_error` issue. Never exposed as a value |
+| `…_lat` holding a plain number | 391 of 499 | validated like JetEngine does: numeric and \|lat\| ≤ 90, \|lng\| ≤ 180 |
+| `…_hash` **≠** `md5( mapa )` → cache is stale for the current address | **7 of 499**, of which **5 also hold an error marker** and only **2** have usable coordinates | the 5 are reported as `coordinates_geocode_error` (there is nothing to return); the 2 are returned with a `coordinates_stale` issue |
 
 ---
 
@@ -344,8 +344,11 @@ Two measured hazards:
 | `imagen-principal` (`value_format: both`) | 5 rows: 4 empty, 1 serialized array. Used only as a fallback when `_thumbnail_id` is absent |
 | `foto-del-contrato` | 1089 rows: 953 `NULL`, 130 integer id, 3 serialized, 3 empty → `has_contract_photo` true for **133** |
 | `documentos-anexos` | 5 rows, **all empty** → `has_attachments` is false for every property today |
-| Gallery id integrity (do all gallery ids resolve to real attachments? any broken file references?) | **TO VERIFY — Task 8.** Parsing the three shapes belongs in the media mapper, not in a SQL aggregate |
-| Media **file existence** | **Cannot be verified on the replica**: `wp-content/uploads` is not local and every request 302-redirects to production, which is off limits. Implemented, documented as unverifiable (Q3 in `docs/OPEN-QUESTIONS.md`) |
+| Gallery id integrity | **VERIFIED in Task 8** by walking the endpoint and checking every reported id against `wp_posts`: **301 distinct attachment ids referenced by galleries do not exist at all** (`SELECT COUNT(*) FROM wp_posts WHERE ID IN (…)` returns **0**), affecting **334 references across 118 properties**. All of them come from `imagenes`; every `_thumbnail_id` still resolves. They are reported as `media_attachment_missing` and left out of the gallery |
+| Gallery token shapes in practice | **VERIFIED**: walking all 3055 properties produced **zero** `media_gallery_unparsable` issues, so the serialized arrays, the 899 comma-separated lists and the single-id rows contain nothing but ids |
+| Attachments with no dimensions | **12**, all `image/heic`. WordPress generates no metadata for HEIC, so `width`, `height` and `sizes` are honestly `null`/empty rather than guessed |
+| Attachment storage paths | Not all media sits under `uploads/YYYY/MM`: JetFormBuilder submissions land in `uploads/jet-form-builder/<hash>/YYYY/MM/`. The mapper never assumes a path convention — URLs come from `wp_get_attachment_url()` and derivative names from the attachment metadata |
+| Media **file existence** | **Cannot be verified on the replica**: `wp-content/uploads` exists but holds only plugin-generated files (28), and every media request 302-redirects to production, which is off limits. Implemented and **skipped** where `wp_get_environment_type()` is `local`, because there the plugin cannot tell a deleted file from an absent library and must not claim either (Q3 in `docs/OPEN-QUESTIONS.md`) |
 
 ---
 
@@ -449,7 +452,7 @@ is used.
 | `imagenes` is a serialized array of id strings | serialized array **and** comma-separated list **and** single value **and** `NULL` | **drives the gallery parser** (§6) |
 | `_thumbnail_id` on **2993 of 3049** | 2998 rows / 2994 usable ids, of 3055 posts | counts corrected |
 | `_jet_pep_*` on **533** | **541** | counts corrected |
-| coordinates on **496**, origin unverified | **498**; origin **verified** as `md5('mapa')` JetEngine geocode cache; 107 are error markers, 7 stale | counts corrected, hazards added |
+| coordinates on **496**, origin unverified | **499**; origin **verified** as `md5('mapa')` JetEngine geocode cache; **108** are error markers, 7 stale | counts corrected, hazards added |
 | `_wpuf_form_id` on **2517** | **2515** | counts corrected |
 | trash meta on **~378** | **383** = exactly the trashed set | counts corrected |
 | taxonomy used by **1983 of 3049** | **1992 of 3055** | counts corrected |
@@ -460,7 +463,8 @@ is used.
 
 ## 11. Still to verify in later tasks
 
-- Gallery id → attachment integrity and broken references (Task 8).
+- ~~Gallery id → attachment integrity and broken references~~ — **done in Task 8** (§6): 301
+  non-existent attachment ids, 334 references, 118 properties.
 - Media file existence (impossible locally — Q3).
 - Per-page query count and timing (Task 10).
 - Full-walk count/ID reconciliation against these totals (Task 11): expected **3055** unique ids,

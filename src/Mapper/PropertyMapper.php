@@ -91,6 +91,13 @@ final class PropertyMapper {
 	private CoordinatesMapper $coordinates;
 
 	/**
+	 * Media mapper.
+	 *
+	 * @var MediaMapper
+	 */
+	private MediaMapper $media;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param FieldMap          $fields      Option sets of the real JetEngine configuration.
@@ -98,19 +105,37 @@ final class PropertyMapper {
 	 * @param NumberParser      $numbers     Conservative number parser.
 	 * @param LocationMapper    $locations   Location taxonomy mapper.
 	 * @param CoordinatesMapper $coordinates Geocode cache mapper.
+	 * @param MediaMapper       $media       Media mapper.
 	 */
 	public function __construct(
 		FieldMap $fields,
 		OptionNormalizer $options,
 		NumberParser $numbers,
 		LocationMapper $locations,
-		CoordinatesMapper $coordinates
+		CoordinatesMapper $coordinates,
+		MediaMapper $media
 	) {
 		$this->fields      = $fields;
 		$this->options     = $options;
 		$this->numbers     = $numbers;
 		$this->locations   = $locations;
 		$this->coordinates = $coordinates;
+		$this->media       = $media;
+	}
+
+	/**
+	 * Loads everything a whole page needs, in bulk, before any property is mapped.
+	 *
+	 * This is what keeps the endpoint free of N+1 queries: the attachments of all 100 properties
+	 * are fetched in one query here rather than one query per image during mapping.
+	 *
+	 * @param array $meta_by_id Raw meta of each property on the page, keyed by property ID.
+	 * @return void
+	 *
+	 * @phpstan-param array<int, array<string, mixed>> $meta_by_id
+	 */
+	public function prime( array $meta_by_id ): void {
+		$this->media->prime( $meta_by_id );
 	}
 
 	/**
@@ -175,12 +200,7 @@ final class PropertyMapper {
 				$issues
 			),
 
-			// Filled in Task 8.
-			'media'                 => array(
-				'featured' => null,
-				'gallery'  => array(),
-			),
-
+			'media'                 => $this->media->map( $meta, $issues ),
 			'private_documents'     => array(
 				'has_contract_photo' => $this->has_value( $meta, 'foto-del-contrato' ),
 				'has_attachments'    => $this->has_value( $meta, 'documentos-anexos' ),
