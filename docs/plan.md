@@ -53,3 +53,51 @@ passes, the box here is checked, `docs/progress.md` has an entry and the work is
 - [x] AC8 Consumer documentation with synthetic examples.
 - [x] Code: `composer cs` clean, `composer stan` clean, `composer test` green, PHP 8.1 compatible, no plugin entries in the logs.
 - [x] `git status` clean, every task committed, nothing pushed, production untouched.
+
+---
+
+## Change request 1 — 2026-10-13
+
+Gianfranco reviewed a real response and the code. Orbitas has not validated the contract yet, so the
+payload starts lean and grows only on request. Changes 1–5 are **breaking** for consumers of 0.1.0;
+6–8 are fixes. One commit per numbered change.
+
+**Contract changes**
+
+- [x] **CR1.1 — Media: drop `sizes`.** `media.featured` and every `media.gallery` item keep `id`,
+  `url` (the original), `mime_type`, `width`, `height`, `alt`. Remove the code that only served sizes.
+- [ ] **CR1.2 — Numbers: plain values.** Replace every `{ raw, value }` pair (`price.sale`,
+  `price.rent`, `price.final_sale`, `features.*`) with the number or `null`. An ambiguous or
+  unparsable non-empty source value yields `null` plus the existing issue
+  (`number_ambiguous` / `number_unparsable`) carrying the original raw string in `detail` — the only
+  place a raw value now appears. `docs/OPEN-QUESTIONS.md` Q5 → ANSWERED.
+- [ ] **CR1.3 — Trash: one field.** Replace `historical_slug`, `status_before_trash` and
+  `trashed_at_gmt` with `trash`: `null` unless the property is in the trash, otherwise
+  `{ historical_slug, status_before_trash, trashed_at_gmt }`.
+- [ ] **CR1.4 — Location: one object.** Replace the `location` array with
+  `{ province, canton, district }`, each `{ id, name, slug }` or `null`. Issues: `location_missing`,
+  `location_incomplete`, `location_ambiguous`. Conflicting terms are never resolved by guessing: the
+  affected level becomes `null` and the conflict is reported.
+- [ ] **CR1.5 — Drop `option_value_normalized`.** It reports a successful mapping, not a data
+  problem. `option_value_unmapped` stays.
+
+**Fixes from the code review**
+
+- [ ] **CR1.6 — Dates.** `created_at_gmt` / `modified_at_gmt` are `null` for a zero date, not `""`.
+- [ ] **CR1.7 — Race between the two queries.** `find_posts()` must not re-filter by status, so a
+  property whose status changes between the two queries is still returned with its current status
+  instead of silently vanishing while the cursor moves past it. An ID that cannot be loaded at all
+  (deleted in between) is reported in `pagination.skipped_ids`, covered by a test and documented.
+- [ ] **CR1.8 — Composition root.** Build the object graph lazily inside the `rest_api_init`
+  callback rather than on every WordPress request. The main plugin file keeps only the header, the
+  `ABSPATH` guard, constants, the autoloader, the activation hook and one bootstrap call.
+
+**Accompanying work**
+
+- [ ] Version 0.2.0 (header, constant, `CHANGELOG.md` "Changed" entry marking the breaking changes).
+- [ ] `docs/contract.md`, `Rest\PropertySchema`, PHPUnit tests, the Postman collection,
+  `docs/consumer-guide.md` (synthetic examples only), `README.md` and `docs/REPORT.md`.
+- [ ] Consumer guide: note that the featured image **can also appear inside the gallery** — that is
+  how the property was saved in the source — so consumers should de-duplicate by media `id`.
+- [ ] Re-run `tools/reconcile.php`, refresh `docs/reconciliation.md`, and add the number of
+  properties per location issue code (aggregates only).

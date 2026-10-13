@@ -1014,3 +1014,35 @@ and a WP-CLI query confirming the capability's scope in `wp_user_roles` and `wp_
 | `GET` with no credentials | **401** |
 | `GET` with the account lacking the capability | **403** |
 | `logs wordpress` grepped for this plugin, whole log | **0** entries |
+
+---
+
+# Change request 1 — 2026-10-13
+
+Gianfranco reviewed a real response and the code. Orbitas has not validated the contract yet, so the
+payload starts lean and grows only on request. One commit per numbered change; every change verified
+against the running site before its commit.
+
+## CR1.1 — Media: drop `sizes`
+
+### Files changed
+- `src/Mapper/MediaMapper.php` — `sizes` removed from the attachment object and the `sizes()` method
+  that built it deleted. `wp_get_attachment_metadata()` is still read, because `width` and `height`
+  come from it.
+- `src/Rest/PropertySchema.php` — `sizes` removed from the attachment shape.
+- `docs/contract.md` §4.9 — example trimmed; two rows added: derivatives are not exposed and why,
+  and the fact that the featured image may also appear in the gallery.
+- `docs/consumer-guide.md` — synthetic example trimmed, the HEIC row no longer mentions `sizes`, and
+  two bullets added to "Reading it": de-duplicate by media `id`, and only the original URL is returned.
+- `postman/…collection.json` — new assertion that every attachment carries exactly
+  `alt,height,id,mime_type,url,width`.
+
+### Verification
+| Check | Result |
+|---|---|
+| `composer cs` | 0 errors / 0 warnings |
+| `composer stan` | No errors (level 8) |
+| `composer test` | OK (71 tests, 195 assertions) |
+| `GET ?per_page=3` | **200**; every attachment object (27 of them) has exactly `alt,height,id,mime_type,url,width` |
+| Featured image also present in the gallery | **2 of 3** properties on the first page — the de-duplication note in the guide is warranted, not hypothetical |
+| `logs wordpress --tail 100` | **0** entries from this plugin |

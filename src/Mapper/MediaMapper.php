@@ -241,43 +241,7 @@ final class MediaMapper {
 			'width'     => isset( $metadata['width'] ) ? (int) $metadata['width'] : null,
 			'height'    => isset( $metadata['height'] ) ? (int) $metadata['height'] : null,
 			'alt'       => is_string( $alt ) ? $alt : '',
-			'sizes'     => (object) $this->sizes( $metadata, $url ),
 		);
-	}
-
-	/**
-	 * Builds the derivative map from the attachment metadata.
-	 *
-	 * URLs are derived from the full-size URL and the per-size file name, which is exactly how
-	 * WordPress itself composes them — no extra query per size.
-	 *
-	 * @param array       $metadata Attachment metadata.
-	 * @param string|null $url      Full-size URL.
-	 * @return array<string, array{url: string, width: int, height: int}>
-	 *
-	 * @phpstan-param array<string, mixed> $metadata
-	 */
-	private function sizes( array $metadata, ?string $url ): array {
-		if ( null === $url || ! isset( $metadata['sizes'] ) || ! is_array( $metadata['sizes'] ) ) {
-			return array();
-		}
-
-		$base  = substr( $url, 0, (int) strrpos( $url, '/' ) + 1 );
-		$sizes = array();
-
-		foreach ( $metadata['sizes'] as $name => $size ) {
-			if ( ! is_array( $size ) || ! isset( $size['file'] ) || ! is_string( $size['file'] ) ) {
-				continue;
-			}
-
-			$sizes[ (string) $name ] = array(
-				'url'    => $base . $size['file'],
-				'width'  => isset( $size['width'] ) ? (int) $size['width'] : 0,
-				'height' => isset( $size['height'] ) ? (int) $size['height'] : 0,
-			);
-		}
-
-		return $sizes;
 	}
 
 	/**

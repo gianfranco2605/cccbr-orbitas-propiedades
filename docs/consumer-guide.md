@@ -206,20 +206,20 @@ Synthetic, but every field is present exactly as the endpoint shapes it.
       "mime_type": "image/jpeg",
       "width": 1600,
       "height": 1067,
-      "alt": "Fachada principal",
-      "sizes": {
-        "thumbnail": { "url": "https://camara.cr/wp-content/uploads/2026/02/example-front-150x150.jpg", "width": 150, "height": 150 },
-        "medium":    { "url": "https://camara.cr/wp-content/uploads/2026/02/example-front-300x200.jpg", "width": 300, "height": 200 },
-        "large":     { "url": "https://camara.cr/wp-content/uploads/2026/02/example-front-1024x683.jpg", "width": 1024, "height": 683 }
-      }
+      "alt": "Fachada principal"
     },
     "gallery": [
+      {
+        "id": 90210,
+        "url": "https://camara.cr/wp-content/uploads/2026/02/example-front.jpg",
+        "mime_type": "image/jpeg",
+        "width": 1600, "height": 1067, "alt": "Fachada principal"
+      },
       {
         "id": 90211,
         "url": "https://camara.cr/wp-content/uploads/2026/02/example-living.jpg",
         "mime_type": "image/jpeg",
-        "width": 1600, "height": 1067, "alt": "",
-        "sizes": { "medium": { "url": "https://camara.cr/wp-content/uploads/2026/02/example-living-300x200.jpg", "width": 300, "height": 200 } }
+        "width": 1600, "height": 1067, "alt": ""
       }
     ]
   },
@@ -253,6 +253,13 @@ Synthetic, but every field is present exactly as the endpoint shapes it.
   property assigned only a distrito still arrives with its cantón and province.
 - **`coordinates` are geocoded from the `map_raw` text**, not surveyed — hence the explicit
   `source`. Treat them as approximate.
+- **The featured image can also appear inside the gallery.** That is how the property was saved in
+  the source, and the example above shows it: `media.featured.id` is `90210` and the gallery's first
+  entry is the same `90210`. The endpoint does **not** filter it out, because `media.gallery` is
+  deliberately the order CCCBR saved. If you import both into one list, **de-duplicate by the media
+  `id`**.
+- **Only the original image URL is returned.** WordPress's generated thumbnail sizes are not part of
+  the payload (they were removed in 0.2.0): derive whatever sizes you need on your side.
 - **`content` is the raw stored HTML.** No shortcode is expanded and no page-builder markup is
   injected, so what you get is the text CCCBR saved. It may contain `<p>`, `<strong>` and `<br />`.
 - **`issues` describes the data, not the request.** A property with issues is still returned in
@@ -293,7 +300,7 @@ Plan for these. The counts are measured, not estimated, and come from
 | **Broken image references** | **301** attachment ids that no longer exist, over **334** references on **118** properties | the id is omitted from `gallery` and reported as `media_attachment_missing` | Import the images that resolve; the report tells CCCBR what to re-upload |
 | **No featured image** | **61** | `media.featured: null` + `media_featured_missing` | Use the first gallery image, or a placeholder |
 | **No gallery** | **87** | `gallery: []` + `media_gallery_empty` | — |
-| **Images without dimensions** | 12, all HEIC | `width`/`height` `null`, `sizes` empty | WordPress generates no derivatives for HEIC. Fetch the original and size it yourself |
+| **Images without dimensions** | 12, all HEIC | `width`/`height` `null` | WordPress stores no metadata for HEIC. Fetch the original and size it yourself |
 | **Unknown origin** | **543** | `origin.source: "unknown"` + `origin_unknown` | Audit only; nothing to import |
 | **No associate number** | **25** properties, from 2 associates | `associate_id: null` + `associate_id_missing` | Map by `creator.id` |
 | **No responsible associate** | all 3055 | `responsible: null` | The field exists in CCCBR's form but has never been filled. Treat the `creator` as responsible |

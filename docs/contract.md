@@ -258,11 +258,7 @@ Source: taxonomy **`ubicacion-propiedad`** — the only taxonomy the CPT uses.
   "featured": {
     "id": 90210, "url": "https://camara.cr/wp-content/uploads/2026/01/example.jpg",
     "mime_type": "image/jpeg", "width": 1600, "height": 1067,
-    "alt": "Example alt text",
-    "sizes": {
-      "thumbnail": { "url": "…-150x150.jpg", "width": 150, "height": 150 },
-      "medium":    { "url": "…-300x200.jpg", "width": 300, "height": 200 }
-    }
+    "alt": "Example alt text"
   },
   "gallery": [ { "…same shape…": "…" } ]
 }
@@ -273,8 +269,9 @@ Source: taxonomy **`ubicacion-propiedad`** — the only taxonomy the CPT uses.
 | `featured` | from `_thumbnail_id` (2994 usable ids, all pointing at a real attachment). When absent, `imagen-principal` is used as a fallback (5 properties, `value_format: both`). `null` when neither resolves |
 | `gallery` | from `imagenes`, **in stored order**, duplicates removed, the featured image **not** removed. `[]` when empty |
 | Gallery parsing | the source uses three shapes — serialized array (2092), **comma-separated id list (899)**, single id (26) — plus 13 `NULL` rows. All are parsed; a non-numeric token raises `media_gallery_unparsable` |
-| Item fields | `id` (integer), `url` (string\|null), `mime_type` (string\|null), `width`/`height` (integer\|null), `alt` (string), `sizes` (object, possibly empty) |
-| `sizes` | every registered derivative the attachment actually has, each `{ url, width, height }` |
+| Item fields | `id` (integer), `url` (string\|null) — the **original** file, `mime_type` (string\|null), `width`/`height` (integer\|null), `alt` (string) |
+| Derivatives | **not exposed.** Orbitas has not asked for WordPress's generated sizes, and shipping them inflated a page of 100 properties by tens of thousands of URLs for data the importer would most likely discard. Only the original `url` is returned; a consumer that needs thumbnails can derive its own. Removed in 0.2.0 |
+| The featured image may also appear in the gallery | The source frequently stores the same attachment in both places, so `media.featured.id` can repeat inside `media.gallery`. It is **not** filtered out, because the gallery order is the order CCCBR saved. De-duplicate by `id` if you import them into one list |
 | Broken references | a gallery/featured id with no attachment post → the id is reported in `issues` as `media_attachment_missing:<id>` and **omitted** from `gallery` |
 | Missing files | when the attachment's file is missing on disk the issue is `media_file_missing:<id>`. **This check cannot be verified on the local replica** (`uploads` is not local and 302-redirects to production) — see Q3 in `docs/OPEN-QUESTIONS.md` |
 

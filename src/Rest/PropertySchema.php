@@ -305,19 +305,6 @@ final class PropertySchema {
 				'width'     => $this->nullable_field( 'integer', 'Full-size width in pixels.' ),
 				'height'    => $this->nullable_field( 'integer', 'Full-size height in pixels.' ),
 				'alt'       => $this->field( 'string', 'Alternative text.' ),
-				'sizes'     => array(
-					'description'          => 'Registered derivatives the attachment actually has.',
-					'type'                 => 'object',
-					'additionalProperties' => array(
-						'type'                 => 'object',
-						'additionalProperties' => false,
-						'properties'           => array(
-							'url'    => $this->field( 'string', 'Derivative URL.' ),
-							'width'  => $this->field( 'integer', 'Derivative width.' ),
-							'height' => $this->field( 'integer', 'Derivative height.' ),
-						),
-					),
-				),
 			),
 		);
 	}
