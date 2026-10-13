@@ -21,7 +21,7 @@ in this repository comes from it.
 | Authorization | capability **`cccbr_orbitas_read_propiedades`** |
 | Who has it | granted to the `administrator` role on plugin activation; removed on uninstall. The plugin never creates users or application passwords |
 | Content type | `application/json; charset=UTF-8` |
-| Caching | `Cache-Control: no-store` — the payload contains personal data of the property creator |
+| Caching | the response sets `no-store` (WordPress merges it with its own REST directives, so the header reads `no-cache, must-revalidate, max-age=0, no-store, private`) — the payload contains personal data of the property creator |
 
 ```bash
 curl -s -u "<user>:<application password>" \
@@ -381,25 +381,66 @@ unique ids, not only counts.
 
 ## 6. Errors
 
-Standard WordPress REST error envelope, with a **stable `code`** and a translated `message`:
+Standard WordPress REST error envelope, with a **stable `code`** and a translated `message`.
+
+### 6.1 401 and 403 — our code is at the top level
 
 ```json
-{ "code": "cccbr_orbitas_invalid_per_page", "message": "…", "data": { "status": 400 } }
+{ "code": "cccbr_orbitas_forbidden", "message": "…", "data": { "status": 403 } }
 ```
 
 | HTTP | `code` | Raised when |
 |---|---|---|
-| **400** | `cccbr_orbitas_invalid_per_page` | `per_page` is not an integer in `1…100` |
-| **400** | `cccbr_orbitas_invalid_after_id` | `after_id` is not an integer `>= 0` |
-| **400** | `cccbr_orbitas_invalid_status` | a `status` value is not one of the six allowed statuses (`auto-draft` and `inherit` are rejected here) |
-| **401** | `cccbr_orbitas_not_authenticated` | no valid authentication was supplied |
+| **401** | `cccbr_orbitas_not_authenticated` | no authenticated user (missing or rejected credentials) |
 | **403** | `cccbr_orbitas_forbidden` | authenticated, but the user lacks `cccbr_orbitas_read_propiedades` |
 | **404** | `rest_no_route` | wrong path or method (WordPress core) |
 | **500** | `cccbr_orbitas_unexpected` | an unexpected server error; the message never leaks internals |
 
+### 6.2 400 — our code is nested, because WordPress wraps argument errors
+
+**Verified against the running endpoint.** WordPress validates the declared arguments before the
+route callback runs and always wraps the result in its own `rest_invalid_param` envelope, so the
+specific code appears under `data.details.<argument>.code`:
+
+```json
+{
+  "code": "rest_invalid_param",
+  "message": "Invalid parameter(s): per_page",
+  "data": {
+    "status": 400,
+    "params":  { "per_page": "The per_page argument must be an integer between 1 and 100." },
+    "details": {
+      "per_page": {
+        "code": "cccbr_orbitas_invalid_per_page",
+        "message": "The per_page argument must be an integer between 1 and 100.",
+        "data": null
+      }
+    }
+  }
+}
+```
+
+| HTTP | Top-level `code` | `data.details.<arg>.code` | Raised when |
+|---|---|---|---|
+| **400** | `rest_invalid_param` | `cccbr_orbitas_invalid_per_page` | `per_page` is not an integer in `1…100` (verified for `101`, `0`, `abc`, `50.5`) |
+| **400** | `rest_invalid_param` | `cccbr_orbitas_invalid_after_id` | `after_id` is not an integer `>= 0` (verified for `-1`, `xyz`) |
+| **400** | `rest_invalid_param` | `cccbr_orbitas_invalid_status` | a `status` value is not one of the six allowed statuses (verified for `auto-draft`, `inherit`, `publish,bogus`) |
+
+So a consumer checks **`data.details.<argument>.code`** for the specific reason and
+`data.params` for the human message. The same stable codes also appear at the top level if the
+argument ever reaches the callback unvalidated (for example if a filter stripped the route's
+`args`), because the controller re-applies the identical checks.
+
 `message` is translatable (text domain `cccbr-orbitas-propiedades`) and may change wording. **Match
-on `code`, never on `message`.** No error body ever contains a credential, a file path or a stack
-trace.
+on `code`, never on `message`.** No error body ever contains a credential, a file path, a stack
+trace, or the rejected value echoed back.
+
+### 6.3 Discovering the schema
+
+`OPTIONS` on the route returns the full collection schema (verified: title
+`cccbr_orbitas_propiedades_collection`, the four envelope members, **38** documented property
+fields) together with the three arguments and their constraints, so a consumer can generate types
+from the live endpoint instead of transcribing this document.
 
 ---
 

@@ -65,4 +65,11 @@ register_activation_hook(
 	}
 );
 
-( new Plugin( __FILE__ ) )->register();
+$cccbr_orbitas_controller = new Rest\PropertiesController(
+	new Auth\Permissions(),
+	new Rest\PropertySchema()
+);
+
+( new Plugin( __FILE__, $cccbr_orbitas_controller ) )->register();
+
+unset( $cccbr_orbitas_controller );

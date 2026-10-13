@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace ElPuas\CCCBR\OrbitasPropiedades;
 
+use ElPuas\CCCBR\OrbitasPropiedades\Rest\PropertiesController;
+
 /**
  * Registers the plugin's hooks.
  *
@@ -25,12 +27,21 @@ final class Plugin {
 	private string $plugin_file;
 
 	/**
+	 * Properties endpoint.
+	 *
+	 * @var PropertiesController
+	 */
+	private PropertiesController $controller;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param string $plugin_file Absolute path to the main plugin file.
+	 * @param string               $plugin_file Absolute path to the main plugin file.
+	 * @param PropertiesController $controller  Properties endpoint.
 	 */
-	public function __construct( string $plugin_file ) {
+	public function __construct( string $plugin_file, PropertiesController $controller ) {
 		$this->plugin_file = $plugin_file;
+		$this->controller  = $controller;
 	}
 
 	/**
@@ -40,6 +51,7 @@ final class Plugin {
 	 */
 	public function register(): void {
 		add_action( 'init', array( $this, 'load_text_domain' ) );
+		add_action( 'rest_api_init', array( $this->controller, 'register_routes' ) );
 	}
 
 	/**

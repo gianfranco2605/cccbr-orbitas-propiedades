@@ -232,7 +232,6 @@ which records the query that produced it.
 - `cccbr-orbitas-propiedades.php` — added `register_activation_hook()` (closure delegating to
   `Activator`) and the single bootstrap call `( new Plugin( __FILE__ ) )->register()`.
 - `phpstan.neon.dist` — `uninstall.php` added to the analysed paths.
-- `src/.gitkeep` removed (the directory now holds real files).
 
 ### Commands run and results
 | Command | Result |
@@ -263,3 +262,65 @@ which records the query that produced it.
 ### Open points carried into Task 4
 - Register `cccbr-orbitas/v1/propiedades` with the permission callback and argument validation,
   then verify 401 / 403 / 400 / 200 with the two test credentials.
+
+---
+
+## 2026-10-13 — Task 4 — Route, permissions and argument validation
+
+### Files changed
+- `src/Rest/QueryArgs.php` (new) — immutable, validated view of `per_page`, `after_id` and
+  `status`. The rules live here once and are used twice: as the route's argument
+  `validate_callback`s and again in `from_request()` at the point of use, so the controller cannot
+  receive an out-of-range value even if a filter stripped the route's `args`. `per_page` above 100
+  is rejected, never clamped; `status` accepts a single value, a comma-separated list and a repeated
+  parameter; `auto-draft` and `inherit` are rejected.
+- `src/Rest/PropertySchema.php` (new) — the JSON Schema of the envelope and of one property
+  (**38 fields**), with helpers for the repeated `{ raw, value }`, `{ key, label }`, attachment and
+  person shapes. Served through the route's `schema` callback.
+- `src/Rest/PropertiesController.php` (new) — registers `GET cccbr-orbitas/v1/propiedades` with a
+  real `permission_callback`, the three validated args and the schema; returns the correctly shaped
+  (still empty) envelope and sets `Cache-Control: no-store`.
+- `src/Plugin.php` — wires the controller to `rest_api_init`.
+- `cccbr-orbitas-propiedades.php` — composes `Permissions` + `PropertySchema` →
+  `PropertiesController` → `Plugin` (constructor injection, no container, no singletons).
+- `docs/contract.md` — §1 caching wording, **§6 rewritten** to the verified error envelope, §6.3
+  added for schema discovery.
+
+### Commands run and results
+| Command | Result |
+|---|---|
+| `composer lint` | no syntax errors |
+| `composer cs` | **0 errors / 0 warnings** (43 alignment and docblock-spacing issues auto-fixed with `composer cbf`) |
+| `composer stan` | **No errors** (level 8, 10 files) |
+| `GET /propiedades` with no credentials | **401**, `code=cccbr_orbitas_not_authenticated` — **VERIFIED** |
+| `GET /propiedades` as `orbitas-noaccess` | **403**, `code=cccbr_orbitas_forbidden` — **VERIFIED** |
+| `GET /propiedades` as `orbitas-dev` | **200**, envelope `data: []`, `pagination{per_page:50, after_id:0, next_after_id:null, has_more:false, max_id:null}`, `totals{total:0, by_status:{}}`, `generated_at` UTC — **VERIFIED** |
+| `per_page=101`, `0`, `abc`, `50.5` | **400** each, `data.details.per_page.code = cccbr_orbitas_invalid_per_page` — **VERIFIED** |
+| `after_id=-1`, `xyz` | **400** each, `data.details.after_id.code = cccbr_orbitas_invalid_after_id` — **VERIFIED** |
+| `status=auto-draft`, `inherit`, `publish,bogus` | **400** each, `data.details.status.code = cccbr_orbitas_invalid_status` — **VERIFIED** |
+| `per_page=100`, `per_page=1`, `after_id=0`, `status=publish`, `status=publish,draft`, `status[]=publish&status[]=trash`, all three combined | **200** each — **VERIFIED** |
+| `OPTIONS /propiedades` | **200**; schema title `cccbr_orbitas_propiedades_collection`, envelope members `data,pagination,totals,generated_at`, **38** property fields, args `per_page,after_id,status` — **VERIFIED** |
+| `logs wordpress --tail 200` | **0** entries from this plugin — **VERIFIED** |
+
+### Facts discovered while verifying (and the contract corrections they forced)
+- **VERIFIED** WordPress validates route arguments **before** the callback and always wraps the
+  failure in its own envelope: the top-level `code` of any argument error is **`rest_invalid_param`**
+  (HTTP 400), and the specific code lands in `data.details.<argument>.code`. The contract claimed
+  our code would be at the top level; `docs/contract.md` §6 now documents the real shape, split into
+  §6.1 (401/403, our code at the top level) and §6.2 (400, nested), with a real response example.
+- **VERIFIED** validation runs before sanitization (`has_valid_params()` then `sanitize_params()`),
+  so the `absint` sanitizers cannot mask an invalid value.
+- **VERIFIED** `WP_REST_Response` headers are merged with WordPress's own REST directives: the
+  response carries `no-cache, must-revalidate, max-age=0, no-store, private`. Contract wording fixed.
+- **FIXED** `totals.by_status` serialized as `[]` because an empty PHP array is a JSON array. It is
+  now cast to an object, so it is `{}` as the contract promises — verified in the live response.
+- **Deviation recorded:** `PropertiesController` deliberately does **not** extend
+  `WP_REST_Controller`. That base class declares its callbacks with untyped parameters and PHP
+  forbids narrowing a parameter type in a subclass, so extending it would mean giving up the strict
+  typing required by the project standards; the endpoint also returns a custom envelope rather than
+  a plain item list. Everything the base class would have supplied — real permission callback,
+  argument validation, published schema — is implemented explicitly. Reason is in the class docblock.
+
+### Open points carried into Task 5
+- Repository + keyset pagination over all statuses, the `status` filter, `totals` and `max_id` in
+  one aggregate query, then a full walk proving 3055 unique ids with no duplicates.
