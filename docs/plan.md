@@ -122,3 +122,23 @@ One commit.
 - [x] **CR2.6** — full checks re-run (lint, cs, stan, test) and `tools/reconcile.php` re-run with
   the new counts reported.
 - [x] **CR2.7** — committed on `main`, not pushed.
+
+---
+
+## Change request 3 — 2026-10-13 — single property by ID
+
+Orbitas must be able to refresh one property without reading the whole collection. This **extends
+the "Route" row** of the decisions table, now updated in `CLAUDE.md`. One commit.
+
+- [x] **CR3.1** — `GET /wp-json/cccbr-orbitas/v1/propiedades/(?P<id>\d+)` added to the existing
+  controller, with the same authentication and the same `cccbr_orbitas_read_propiedades` capability.
+- [x] **CR3.2** — the body is the property object, built by the same mappers as a collection item.
+- [x] **CR3.3** — one `404` (`cccbr_orbitas_property_not_found`), same code and message, for an
+  unknown id, another post type, a trashed property, and `auto-draft` / `inherit`.
+- [x] **CR3.4** — `id` validated as a positive integer in the route args.
+- [x] **CR3.5** — `docs/contract.md`, `docs/consumer-guide.md`, `README.md`, `CHANGELOG.md`,
+  `CLAUDE.md`, `docs/REPORT.md`, the unit tests and the Postman collection updated.
+- [x] **CR3.6** — `tools/reconcile.php` compares the single-property response with the collection
+  item for a sample of ids.
+- [x] **CR3.7** — lint, cs, stan, test and the reconciliation re-run and reported.
+- [x] **CR3.8** — committed on `main`, not pushed.

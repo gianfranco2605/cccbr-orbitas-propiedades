@@ -6,21 +6,25 @@ complete property data, images, relations and the data of the user who created e
 import them into their Marketplace.
 
 - **Author:** ElPuas Digital Crafts
-- **Version:** 0.3.0
+- **Version:** 0.4.0
 - **Requires:** WordPress 6.9+, PHP 8.1+ (production runs PHP 8.1.13)
 - **License:** GPL-2.0-or-later
 
-## Endpoint
+## Endpoints
 
 ```
-GET /wp-json/cccbr-orbitas/v1/propiedades
+GET /wp-json/cccbr-orbitas/v1/propiedades          # the collection, keyset-paginated
+GET /wp-json/cccbr-orbitas/v1/propiedades/{id}     # one property, for refreshing a single record
 ```
+
+Both routes are read-only and share the same gate.
 
 - **Authentication:** WordPress Application Passwords (HTTP Basic).
 - **Authorization:** capability `cccbr_orbitas_read_propiedades` (granted to `administrator` on
   activation, removed on uninstall). The plugin never creates users or passwords.
 - **Pagination:** keyset cursor on ascending post ID (`after_id`); `per_page` default 50, maximum 100.
-- **Scope:** every `cccbr-propiedades` property that is **not in the trash** — 2672 today — each item carrying its own status. Trashed properties are excluded by CCCBR's decision, and `?status=trash` is a `400`.
+- **Scope:** every `cccbr-propiedades` property that is **not in the trash** — 2672 today — each item carrying its own status. Trashed properties are excluded by CCCBR's decision: `?status=trash` is a `400`, and asking for a trashed id gives the same `404` as an unknown one.
+- **Both routes return the identical property object**, verified on a sample by `tools/reconcile.php`.
 
 **Building the import?** Start with [`docs/consumer-guide.md`](docs/consumer-guide.md) — how to
 authenticate, how to walk all 2672 properties without omissions or duplicates, how to retry, and a

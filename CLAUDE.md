@@ -27,7 +27,7 @@ Orbitas, delivering data or access to third parties.
 
 | Topic | Decision |
 |---|---|
-| Route | `GET /wp-json/cccbr-orbitas/v1/propiedades` (read-only, collection only) |
+| Route | `GET /wp-json/cccbr-orbitas/v1/propiedades` (read-only collection) and, **extended by change request 3 (13 Oct 2026)**, `GET /wp-json/cccbr-orbitas/v1/propiedades/{id}` for one property — same auth, same capability, same mappers, so both return the identical object. |
 | Authentication | WordPress **Application Passwords** (HTTP Basic). No custom auth, no JWT. |
 | Authorization | Capability `cccbr_orbitas_read_propiedades`, granted to `administrator` on activation, removed on uninstall. The plugin never creates users or passwords. |
 | Statuses | **Superseded by change request 2 (13 Oct 2026):** `publish`, `draft`, `pending`, `private`, `future` — **`trash` is excluded**. Each item carries its status; the optional `status` filter accepts only those five and returns 400 for anything else, `trash` included. `auto-draft` and `inherit` remain excluded and documented. |

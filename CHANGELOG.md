@@ -5,6 +5,45 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] — 2026-10-13
+
+Change request 3. Orbitas must be able to refresh one property without reading the whole collection.
+**Purely additive** — nothing about the collection route or the property object changed.
+
+### Added
+
+- **`GET /wp-json/cccbr-orbitas/v1/propiedades/{id}`.** Same authentication (Application Passwords)
+  and same capability (`cccbr_orbitas_read_propiedades`) as the collection. The body is the
+  **property object itself**, with no envelope.
+- The response is built by the **same repository and the same mappers** as a collection item, so a
+  property is identical in both routes — down to field order. `tools/reconcile.php` now verifies
+  that with `===` on a sample of ids drawn from the walk (**27 of 27 identical**), which makes it a
+  checked fact rather than an assumption.
+- `OPTIONS …/propiedades/{id}` publishes the item schema (`cccbr_orbitas_propiedad`).
+- `Rest\QueryArgs::is_positive_integer()`, a pure rule covered by **17 new unit tests**, and
+  `validate_id()` which wraps it for the route.
+
+### Behaviour
+
+- **One `404` for every "no such property" case**, with the same code
+  (`cccbr_orbitas_property_not_found`) and the same message whether the id is unknown, belongs to
+  another post type, is a **trashed** property, or is an `auto-draft` / `inherit` row. Telling them
+  apart would let an authorized caller probe the site's contents through the differences, and an
+  importer has nothing to do differently in any of those cases.
+- `id` is validated as a positive integer: `/propiedades/0` is a `400` with
+  `data.details.id.code = cccbr_orbitas_invalid_id`, because the route pattern `(?P<id>\d+)` matches
+  `0` on its own. `/propiedades/abc` does not match the pattern at all and is WordPress's
+  `rest_no_route`.
+- Only a readable method is registered, so `POST` to the single route is refused like on the
+  collection.
+
+### Verified
+
+lint, cs and stan clean; **112 tests / 290 assertions**; reconciliation **22 of 22 checks pass**
+including the new route-identity check; `200` for a real property, `404` for an unknown id, a
+non-property post, the WPUF form and a trashed property — all four with the identical body; `400`
+for `id=0`; `401` without credentials and `403` without the capability; no plugin entries in the log.
+
 ## [0.3.0] — 2026-10-13
 
 Change request 2. **CCCBR decided that trashed properties must not be sent to Orbitas.** This
@@ -153,6 +192,7 @@ deployment to production is outside this scope.
 - WPCS 3 via PHPCS with PHPCompatibilityWP at `testVersion 8.1-`; PHPStan level 8 with WordPress
   stubs; PHPUnit for WordPress-free unit tests. `composer lint`, `cs`, `cbf`, `stan`, `test`.
 
+[0.4.0]: https://github.com/gianfranco2605/cccbr-orbitas-propiedades/releases/tag/v0.4.0
 [0.3.0]: https://github.com/gianfranco2605/cccbr-orbitas-propiedades/releases/tag/v0.3.0
 [0.2.0]: https://github.com/gianfranco2605/cccbr-orbitas-propiedades/releases/tag/v0.2.0
 [0.1.0]: https://github.com/gianfranco2605/cccbr-orbitas-propiedades/releases/tag/v0.1.0

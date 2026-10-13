@@ -221,6 +221,39 @@ final class QueryArgs {
 	}
 
 	/**
+	 * Validates the single-property route's `id`.
+	 *
+	 * @param mixed $value Raw parameter value.
+	 * @return true|WP_Error
+	 */
+	public static function validate_id( $value ) {
+		if ( self::is_positive_integer( $value ) ) {
+			return true;
+		}
+
+		return new WP_Error(
+			'cccbr_orbitas_invalid_id',
+			__( 'The id must be a positive integer.', 'cccbr-orbitas-propiedades' ),
+			array( 'status' => 400 )
+		);
+	}
+
+	/**
+	 * Whether a raw value is a whole number of 1 or more.
+	 *
+	 * Pure, so the rule itself is unit-tested without WordPress; {@see self::validate_id()} only
+	 * wraps it in the `WP_Error` the REST layer needs.
+	 *
+	 * @param mixed $value Raw parameter value.
+	 * @return bool
+	 */
+	public static function is_positive_integer( $value ): bool {
+		$number = self::to_integer( $value );
+
+		return null !== $number && $number > 0;
+	}
+
+	/**
 	 * Page size.
 	 *
 	 * @return int

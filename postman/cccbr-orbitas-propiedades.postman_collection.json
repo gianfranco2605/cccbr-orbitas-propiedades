@@ -1,7 +1,7 @@
 {
 	"info": {
 		"name": "CCCBR Orbitas Propiedades",
-		"description": "Tests for GET /wp-json/cccbr-orbitas/v1/propiedades.\n\n## Before you run it\n\nThis collection contains **no credentials**. Create a Postman *environment* (never committed — `postman/*.postman_environment.json` is git-ignored) with these variables:\n\n| Variable | Meaning |\n|---|---|\n| `base_url` | e.g. `http://localhost:8080` or `https://camara.cr` — no trailing slash |\n| `username` | a WordPress user holding the `cccbr_orbitas_read_propiedades` capability |\n| `app_password` | that user's **Application Password**, spaces and all |\n| `noaccess_username` | a user **without** the capability, for the 403 test |\n| `noaccess_app_password` | that user's Application Password |\n\nThe collection authenticates with HTTP Basic at collection level; the 401 request switches auth off and the 403 request overrides the credentials.\n\n## How to run it\n\nUse the Collection Runner (or `newman run`) so the folders execute in order: *Full walk* loops over itself through the whole collection using the keyset cursor, and *Consistency* depends on values the earlier requests store.\n\n## The manual case: a record added during a walk\n\nOne acceptance case cannot be automated from Postman alone, because it needs a property to be created while the walk is in progress:\n\n1. Run *Full walk* and note `totals.total` from the first page.\n2. While it is running (or between two pages), create a property in WordPress.\n3. Finish the walk.\n\nExpected: the new property has a **higher id** than every page already fetched, so it appears at the end of the walk and **never duplicates** an earlier row — that is the guarantee keyset pagination gives and offset pagination does not. The walk's item count may exceed the first page's `totals.total` by exactly the number of properties added. To pin the set to the moment the walk started, record `pagination.max_id` from the first page and ignore any id above it.",
+		"description": "Tests for the CCCBR Orbitas properties API:\n\n- `GET /wp-json/cccbr-orbitas/v1/propiedades` — the collection\n- `GET /wp-json/cccbr-orbitas/v1/propiedades/{id}` — one property\n\nThe *Single property* folder proves the two routes return the identical object for the same property.\n\n## Before you run it\n\nThis collection contains **no credentials**. Create a Postman *environment* (never committed — `postman/*.postman_environment.json` is git-ignored) with these variables:\n\n| Variable | Meaning |\n|---|---|\n| `base_url` | e.g. `http://localhost:8080` or `https://camara.cr` — no trailing slash |\n| `username` | a WordPress user holding the `cccbr_orbitas_read_propiedades` capability |\n| `app_password` | that user's **Application Password**, spaces and all |\n| `noaccess_username` | a user **without** the capability, for the 403 test |\n| `noaccess_app_password` | that user's Application Password |\n| `trashed_id` | *(optional)* id of a trashed property, so the 404 test can prove a trashed id is indistinguishable from an unknown one |\n\nThe collection authenticates with HTTP Basic at collection level; the 401 request switches auth off and the 403 request overrides the credentials.\n\n## How to run it\n\nUse the Collection Runner (or `newman run`) so the folders execute in order: *Full walk* loops over itself through the whole collection using the keyset cursor, and *Consistency* depends on values the earlier requests store.\n\n## The manual case: a record added during a walk\n\nOne acceptance case cannot be automated from Postman alone, because it needs a property to be created while the walk is in progress:\n\n1. Run *Full walk* and note `totals.total` from the first page.\n2. While it is running (or between two pages), create a property in WordPress.\n3. Finish the walk.\n\nExpected: the new property has a **higher id** than every page already fetched, so it appears at the end of the walk and **never duplicates** an earlier row — that is the guarantee keyset pagination gives and offset pagination does not. The walk's item count may exceed the first page's `totals.total` by exactly the number of properties added. To pin the set to the moment the walk started, record `pagination.max_id` from the first page and ignore any id above it.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"auth": {
@@ -63,6 +63,26 @@
 		{
 			"key": "repeat_ids",
 			"value": "[]",
+			"type": "string"
+		},
+		{
+			"key": "sample_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "sample_item",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "trashed_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "not_found_message",
+			"value": "",
 			"type": "string"
 		}
 	],
@@ -210,6 +230,8 @@
 									"    });",
 									"});",
 									"",
+									"pm.collectionVariables.set('sample_id', String(body.data[0].id));",
+									"",
 									"pm.collectionVariables.set('first_page_ids', JSON.stringify(body.data.map(p => p.id)));",
 									"pm.collectionVariables.set('expected_total', String(body.totals.total));"
 								]
@@ -292,6 +314,264 @@
 									"    body.data.forEach(p => pm.expect(['publish', 'draft']).to.include(p.status));",
 									"    Object.keys(body.totals.by_status).forEach(s => pm.expect(['publish', 'draft']).to.include(s));",
 									"});"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Single property",
+			"item": [
+				{
+					"name": "Collection item, remembered",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}{{route}}?per_page=1&after_id=0",
+							"host": [
+								"{{base_url}}{{route}}"
+							],
+							"query": [
+								{
+									"key": "per_page",
+									"value": "1"
+								},
+								{
+									"key": "after_id",
+									"value": "0"
+								}
+							]
+						},
+						"description": "Stores one property from the collection so the next request can prove the single route returns exactly the same object."
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.response.to.have.status(200));",
+									"const item = pm.response.json().data[0];",
+									"pm.collectionVariables.set('sample_id', String(item.id));",
+									"pm.collectionVariables.set('sample_item', JSON.stringify(item));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "One property by id",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}{{route}}/{{sample_id}}",
+							"host": [
+								"{{base_url}}{{route}}/{{sample_id}}"
+							]
+						},
+						"description": "The body is the property object itself, with no envelope, and it must be identical to the same property as the collection returns it."
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.response.to.have.status(200));",
+									"pm.test('Cache-Control forbids storing the payload', () => {",
+									"    pm.expect(String(pm.response.headers.get('Cache-Control'))).to.include('no-store');",
+									"});",
+									"",
+									"const body = pm.response.json();",
+									"",
+									"pm.test('The body is the property itself, with no envelope', () => {",
+									"    pm.expect(body).to.not.have.property('data');",
+									"    pm.expect(body).to.not.have.property('pagination');",
+									"    pm.expect(body.id).to.eql(Number(pm.collectionVariables.get('sample_id')));",
+									"});",
+									"",
+									"pm.test('Identical to the collection item, field for field', () => {",
+									"    pm.expect(body).to.eql(JSON.parse(pm.collectionVariables.get('sample_item')));",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "404 for an id that does not exist",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}{{route}}/999999999",
+							"host": [
+								"{{base_url}}{{route}}/999999999"
+							]
+						},
+						"description": "One code and one message for every 'no such property' case, so the response does not reveal whether the id is unknown, belongs to another post type, or is in the trash."
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+									"pm.test('Stable code', () => pm.expect(pm.response.json().code).to.eql('cccbr_orbitas_property_not_found'));",
+									"pm.collectionVariables.set('not_found_message', pm.response.json().message);"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "404 for a trashed property, with the same message",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}{{route}}/{{trashed_id}}",
+							"host": [
+								"{{base_url}}{{route}}/{{trashed_id}}"
+							]
+						},
+						"description": "Set `trashed_id` in your environment to the id of a trashed property. The response must be indistinguishable from the one above: same status, same code, same message. Skipped when the variable is empty."
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const id = pm.collectionVariables.get('trashed_id') || pm.environment.get('trashed_id');",
+									"",
+									"if (!id) {",
+									"    pm.test.skip('No trashed_id configured, skipping', () => {});",
+									"} else {",
+									"    pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+									"    pm.test('Indistinguishable from an unknown id', () => {",
+									"        pm.expect(pm.response.json().code).to.eql('cccbr_orbitas_property_not_found');",
+									"        pm.expect(pm.response.json().message).to.eql(pm.collectionVariables.get('not_found_message'));",
+									"    });",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "id=0 is rejected",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}{{route}}/0",
+							"host": [
+								"{{base_url}}{{route}}/0"
+							]
+						},
+						"description": "The route pattern matches 0, so only the argument rule keeps it from reaching the lookup."
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+									"pm.test('Reported as an invalid id', () => {",
+									"    pm.expect(pm.response.json().data.details.id.code).to.eql('cccbr_orbitas_invalid_id');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "401 without credentials",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}{{route}}/{{sample_id}}",
+							"host": [
+								"{{base_url}}{{route}}/{{sample_id}}"
+							]
+						},
+						"description": "The single route is gated exactly like the collection."
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+									"pm.test('Stable code', () => pm.expect(pm.response.json().code).to.eql('cccbr_orbitas_not_authenticated'));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "403 without the capability",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": [
+								{
+									"key": "username",
+									"value": "{{noaccess_username}}",
+									"type": "string"
+								},
+								{
+									"key": "password",
+									"value": "{{noaccess_app_password}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}{{route}}/{{sample_id}}",
+							"host": [
+								"{{base_url}}{{route}}/{{sample_id}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+									"pm.test('Stable code', () => pm.expect(pm.response.json().code).to.eql('cccbr_orbitas_forbidden'));"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Writing is not possible",
+					"request": {
+						"method": "POST",
+						"url": {
+							"raw": "{{base_url}}{{route}}/{{sample_id}}",
+							"host": [
+								"{{base_url}}{{route}}/{{sample_id}}"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('The route refuses to write', () => pm.expect(pm.response.code).to.be.oneOf([404, 405]));"
 								]
 							}
 						}

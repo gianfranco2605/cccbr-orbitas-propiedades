@@ -128,6 +128,35 @@ if ( ! function_exists( __NAMESPACE__ . '\\cccbr_orbitas_tools_prepare' ) ) {
 	}
 
 	/**
+	 * Performs one request against the single-property route.
+	 *
+	 * @param int $id Property ID.
+	 * @return array{status: int, body: mixed, queries: int, seconds: float}
+	 */
+	function cccbr_orbitas_tools_request_item( int $id ): array {
+		global $wpdb;
+
+		$request = new \WP_REST_Request(
+			'GET',
+			'/' . PropertiesController::REST_NAMESPACE . '/' . PropertiesController::REST_BASE . '/' . $id
+		);
+
+		$request->set_param( 'id', $id );
+
+		$queries_before = $wpdb->num_queries;
+		$started        = microtime( true );
+
+		$response = rest_do_request( $request );
+
+		return array(
+			'status'  => $response->get_status(),
+			'body'    => $response->get_data(),
+			'queries' => $wpdb->num_queries - $queries_before,
+			'seconds' => microtime( true ) - $started,
+		);
+	}
+
+	/**
 	 * Performs one request against the properties route and returns the decoded payload.
 	 *
 	 * Going through `rest_do_request()` exercises the real dispatch path, including argument

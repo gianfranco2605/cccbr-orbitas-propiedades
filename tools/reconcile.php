@@ -68,6 +68,7 @@ function cccbr_orbitas_walk(): array {
 	$leads_total      = 0;
 	$contract_photos  = 0;
 	$location_issues  = array();
+	$sample           = array();
 
 	do {
 		$result = cccbr_orbitas_tools_request(
@@ -100,6 +101,12 @@ function cccbr_orbitas_walk(): array {
 			}
 
 			$ids[] = (int) $property['id'];
+
+			// Keep one item per page, plus the first of all, as the sample the single-property
+			// route is compared against.
+			if ( 0 === count( $ids ) % 100 || 1 === count( $ids ) ) {
+				$sample[ (int) $property['id'] ] = $property;
+			}
 
 			$status               = (string) $property['status'];
 			$by_status[ $status ] = ( $by_status[ $status ] ?? 0 ) + 1;
@@ -222,6 +229,7 @@ function cccbr_orbitas_walk(): array {
 		'leads_total'      => $leads_total,
 		'contract_photos'  => $contract_photos,
 		'location_issues'  => $location_issues,
+		'sample'           => $sample,
 	);
 }
 
@@ -610,7 +618,60 @@ function cccbr_orbitas_reconcile(): void {
 
 	$checks[] = ( $first_ids === $second_ids );
 
-	echo "\n## 5. Data-quality issues reported by the endpoint\n\n";
+	echo "\n## 5. The single-property route\n\n";
+
+	$sample     = (array) $walk['sample'];
+	$same       = 0;
+	$different  = array();
+	$bad_status = array();
+
+	foreach ( $sample as $id => $collection_item ) {
+		$single = cccbr_orbitas_tools_request_item( (int) $id );
+
+		if ( 200 !== $single['status'] ) {
+			$bad_status[] = (int) $id . ' → HTTP ' . $single['status'];
+
+			continue;
+		}
+
+		if ( $single['body'] === $collection_item ) {
+			++$same;
+
+			continue;
+		}
+
+		$single_keys = is_array( $single['body'] ) ? array_keys( $single['body'] ) : array();
+		$differing   = array();
+
+		foreach ( $collection_item as $field => $value ) {
+			if ( ! array_key_exists( $field, (array) $single['body'] ) || $single['body'][ $field ] !== $value ) {
+				$differing[] = (string) $field;
+			}
+		}
+
+		$different[] = (int) $id . ' (' . ( array() === $differing ? 'key order or extra: ' . implode( ',', $single_keys ) : implode( ',', $differing ) ) . ')';
+	}
+
+	printf( "| Check | Result |\n|---|---|\n" );
+	printf( "| Ids sampled from the walk | %d |\n", count( $sample ) );
+	printf( "| Single-property responses that are **identical** to the collection item | %d |\n", $same );
+	printf(
+		"| Responses that differ | %s |\n",
+		array() === $different ? '0' : '**' . count( $different ) . '**: ' . implode( '; ', $different )
+	);
+	printf(
+		"| Sampled ids the single route did not return with 200 | %s |\n",
+		array() === $bad_status ? '0' : '**' . implode( '; ', $bad_status ) . '**'
+	);
+
+	$checks[] = ( count( $sample ) === $same );
+
+	echo "\nIdentity is compared with `===` on the whole decoded body, so a difference in a nested\n";
+	echo "value, a type or the field order would all show up. Both routes go through the same\n";
+	echo "repository and the same mappers; this check is what makes that a verified fact rather than\n";
+	echo "an assumption.\n";
+
+	echo "\n## 6. Data-quality issues reported by the endpoint\n\n";
 
 	$issues = (array) $walk['issues'];
 	ksort( $issues );
@@ -647,7 +708,7 @@ function cccbr_orbitas_reconcile(): void {
 	echo "\nThese describe the **source data**, not endpoint failures: every property is still\n";
 	echo "returned in full. See `docs/contract.md` §4.11 for what each code means.\n";
 
-	echo "\n## 6. Limitations of this run\n\n";
+	echo "\n## 7. Limitations of this run\n\n";
 	echo "- **Media file existence is not checked here.** `wp-content/uploads` on the replica holds no\n";
 	echo "  media and every request redirects to production, so the check is switched off for these\n";
 	echo "  tools — unconditionally, because the `wpcli` container reports a different\n";
@@ -661,7 +722,7 @@ function cccbr_orbitas_reconcile(): void {
 
 	$failed = count( array_filter( $checks, static fn( bool $ok ): bool => ! $ok ) );
 
-	printf( "\n## 7. Verdict\n\n" );
+	printf( "\n## 8. Verdict\n\n" );
 	printf( '**%d of %d checks passed.**', count( $checks ) - $failed, count( $checks ) );
 
 	if ( 0 === $failed ) {

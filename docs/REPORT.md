@@ -1,4 +1,4 @@
-# Final report — CCCBR Orbitas Propiedades v0.3.0
+# Final report — CCCBR Orbitas Propiedades v0.4.0
 
 **Date:** 13 October 2026 · **Author:** ElPuas Digital Crafts · **Status:** complete on the local
 replica, **not deployed** (deployment to production is outside this scope).
@@ -7,11 +7,12 @@ replica, **not deployed** (deployment to production is outside this scope).
 
 ## 1. What was built
 
-One authenticated, read-only REST endpoint that hands the Orbitas team **every** CCCBR property with
-everything needed to import it:
+Two authenticated, read-only REST routes that hand the Orbitas team every exported CCCBR property
+with everything needed to import it:
 
 ```
-GET /wp-json/cccbr-orbitas/v1/propiedades
+GET /wp-json/cccbr-orbitas/v1/propiedades          # the collection, keyset-paginated
+GET /wp-json/cccbr-orbitas/v1/propiedades/{id}     # one property, for refreshing a single record
 ```
 
 - **Authentication:** WordPress Application Passwords (HTTP Basic). No custom auth, no JWT.
@@ -25,6 +26,9 @@ GET /wp-json/cccbr-orbitas/v1/propiedades
   `{ province, canton, district }`, coordinates, media (originals only), private-document booleans,
   creator / responsible / company, associate id, lead count, origin, and a list of data-quality
   `issues`.
+- **0.4.0 added the single-property route** (change request 3): the same object as a collection
+  item, built by the same code, with one `404` covering every "no such property" case so the
+  endpoint cannot be used to probe what exists.
 - **0.2.0 trimmed the payload** after a review: no image derivatives, no `{ raw, value }` wrappers,
   the trash fields grouped, the location named, and one issue code dropped. **0.3.0 then dropped
   trashed properties entirely.** `CHANGELOG.md` lists every change; both releases are breaking.
@@ -40,7 +44,7 @@ src/Plugin.php                    hook wiring only
 src/Factory.php                   the composition root, called lazily on rest_api_init
 src/Auth/Permissions.php          capability + 401/403 permission callback
 src/Lifecycle/Activator.php       grants the capability (the only thing persisted)
-src/Rest/PropertiesController.php route, args, envelope
+src/Rest/PropertiesController.php both routes, args, envelope
 src/Rest/QueryArgs.php            validated per_page / after_id / status
 src/Rest/PropertySchema.php       the published JSON Schema
 src/Repository/PropertyRepository.php   keyset page + one aggregate + bulk post loading
@@ -70,6 +74,10 @@ Decisions worth defending:
   cannot be loaded at all is named in `pagination.skipped_ids`.
 - **The graph is built lazily.** `Factory` runs inside the `rest_api_init` callback, so a page view
   or a cron run never constructs fourteen objects for an endpoint it will not call.
+- **The single route reuses `find_posts()`.** That method already restricts to the post type and the
+  exported statuses, so an unknown id, a post of another type, a trashed property and an
+  `auto-draft` all produce the same empty result — and therefore the same `404` — without a single
+  branch written for them.
 - **The pure classes are pure.** `Cursor`, `NumberParser`, `OptionNormalizer`, `IdListParser`,
   `LocationResolver` and `CoordinatesMapper` touch no WordPress function, which is why 90 unit tests
   can cover the risky logic with no WordPress bootstrap. Accent folding is implemented locally rather than with
@@ -87,15 +95,15 @@ Decisions worth defending:
 
 | | Criterion | Result | Evidence |
 |---|---|---|---|
-| **AC1** | Contract documented from the real schema | ✅ | `docs/schema.md` (every meta key with counts, included or excluded with a reason) → `docs/contract.md` (route, auth, args, 38 fields with type, nullability and source key, pagination, limits, errors). The same schema is published live through `OPTIONS` |
+| **AC1** | Contract documented from the real schema | ✅ | `docs/schema.md` (every meta key with counts, included or excluded with a reason) → `docs/contract.md` (both routes, auth, args, 35 fields with type, nullability and source key, pagination, limits, errors). Both schemas are published live through `OPTIONS` |
 | **AC2** | Full walk returns every property; statuses documented; no implicit filter | ✅ | 27 pages return **2672** properties — the whole exported population; `publish` 2612 / `draft` 60, each item carrying its own status. Trashed properties are excluded by an explicit client decision, recorded in `CLAUDE.md` and `docs/contract.md` §2, not by an implicit filter. `docs/reconciliation.md` §1–2 |
-| **AC3** | Counts and unique ids reconciled against the database, total and by status / author | ✅ | **21 of 21** checks pass: 2672 = 2672, **0** ids missing, **0** phantom, **0** duplicates, both statuses agreeing across walk / `totals` / database, **248** distinct authors with **0** per-author count differing. Every comparison query applies the same status filter as the endpoint. `docs/reconciliation.md` |
+| **AC3** | Counts and unique ids reconciled against the database, total and by status / author | ✅ | **22 of 22** checks pass (the last one comparing the two routes): 2672 = 2672, **0** ids missing, **0** phantom, **0** duplicates, both statuses agreeing across walk / `totals` / database, **248** distinct authors with **0** per-author count differing. Every comparison query applies the same status filter as the endpoint. `docs/reconciliation.md` |
 | **AC4** | Complete fields, custom fields, taxonomy and images per property; missing items reported | ✅ | All 29 meta-box fields mapped; taxonomy with full ancestor path (5908 entries, exactly the stored relationships); 2994 featured images and 30 225 gallery images; **301** broken attachment references found and reported. `docs/reconciliation.md` §3, `docs/schema.md` §6 |
 | **AC5** | Property → creator → associate checked on a sample and in total; nothing invented | ✅ | 250 creators, **0** missing; `associate_id` absent on exactly **25** properties, matching the 2 of 250 authors with no associate number; company on **448**; `responsible` `null` everywhere because the source field is empty everywhere; `marketplace_id` `null` because no such field exists. `docs/reconciliation.md` §3, `docs/schema.md` §8 |
 | **AC6** | Tests for multiple pages, last page, zero results, limits, retries, records changed during extraction; consistency mechanism documented | ✅ | Postman: 21 requests / 62 assertions including a self-looping full walk; the same cases re-run with `curl` (`docs/progress.md`, Task 12); the mid-walk-insert case documented as a manual procedure with its automatable half asserted; mechanism in `docs/contract.md` §5 and `docs/consumer-guide.md` §4 |
 | **AC7** | 401 unauthenticated, 403 without the capability; no secrets or personal data in responses, docs or examples | ✅ | Both verified over HTTP with the two test accounts; a 100-property page has 93 key names and **none** of 40 forbidden ones; no secret or personal value in any committed file or in 13 commits of history. `docs/security-review.md` |
 | **AC8** | Consumer documentation with synthetic examples | ✅ | `docs/consumer-guide.md`: authentication, the walk, the snapshot recipe, retry table, a complete synthetic property, why numbers are `{ raw, value }`, a measured table of what the source lacks, and a first-import checklist |
-| | `composer cs` clean, `composer stan` clean, `composer test` green, PHP 8.1 compatible, no plugin entries in the logs | ✅ | 0 errors / 0 warnings; PHPStan level 8 clean; **95 tests, 273 assertions**; PHP 8.1 enforced by PHPCompatibilityWP `testVersion 8.1-` and PHPStan `phpVersion 80113`; **0** log entries from this plugin after hundreds of requests |
+| | `composer cs` clean, `composer stan` clean, `composer test` green, PHP 8.1 compatible, no plugin entries in the logs | ✅ | 0 errors / 0 warnings; PHPStan level 8 clean; **112 tests, 290 assertions**; PHP 8.1 enforced by PHPCompatibilityWP `testVersion 8.1-` and PHPStan `phpVersion 80113`; **0** log entries from this plugin after hundreds of requests |
 | | `git status` clean, every task committed, nothing pushed, production untouched | ✅ | 15 task commits plus change request 1; the repository was pushed to its private GitHub remote only when Gianfranco asked for it; no request ever reached production |
 
 ### Performance

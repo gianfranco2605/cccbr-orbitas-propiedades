@@ -52,11 +52,14 @@ user's other integrations.
 
 ---
 
-## 3. The request
+## 3. The two requests
 
 ```
-GET /wp-json/cccbr-orbitas/v1/propiedades
+GET /wp-json/cccbr-orbitas/v1/propiedades          # the collection, paginated
+GET /wp-json/cccbr-orbitas/v1/propiedades/{id}     # one property
 ```
+
+Both need the same credentials and the same capability. The collection's arguments:
 
 | Argument | Default | Range | Meaning |
 |---|---|---|---|
@@ -70,6 +73,27 @@ so you can generate types from the live endpoint instead of transcribing this do
 Use `per_page=100` always. A request for one property is **no faster** than a request for a hundred —
 the cost is dominated by WordPress booting, not by the data — so a smaller page size just multiplies
 the number of requests.
+
+### One property by id
+
+```bash
+curl -s -u "$USER:$APP_PASSWORD" \
+  "https://camara.cr/wp-json/cccbr-orbitas/v1/propiedades/184589"
+```
+
+The body is **the property object itself** — no `data`, no `pagination`, no `totals` — and it is
+**identical** to the same property as the collection returns it, field for field. Both routes run
+the same code; the reconciliation checks it with `===` on a sample every run.
+
+Use it to refresh **one** record: after a webhook, on a retry, or when someone asks for a specific
+listing. Do **not** walk the collection and then re-fetch each item by id — the collection already
+gives you the complete object, and 2672 single requests cost far more than 27 pages.
+
+A `404` means "no exported property has that id", and that is all it means. The id may be unknown,
+belong to something that is not a property, or be a **trashed** property — the response is the same
+in every case (`cccbr_orbitas_property_not_found`), on purpose, so the endpoint cannot be used to
+probe what exists. For your import the handling is the same anyway: the property is not available,
+so stop tracking it.
 
 ---
 
@@ -129,7 +153,8 @@ filter would add contract surface for very little gain.
 
 | HTTP | `code` | Retry? | What to do |
 |---|---|---|---|
-| **400** | `rest_invalid_param` | **No** | A bad argument. The specific reason is in `data.details.<argument>.code`: `cccbr_orbitas_invalid_per_page`, `…_invalid_after_id`, `…_invalid_status`. Fix the request |
+| **400** | `rest_invalid_param` | **No** | A bad argument. The specific reason is in `data.details.<argument>.code`: `cccbr_orbitas_invalid_per_page`, `…_invalid_after_id`, `…_invalid_status`, `…_invalid_id`. Fix the request |
+| **404** | `cccbr_orbitas_property_not_found` | **No** | Single route only: no exported property has that id. Unknown, wrong type and trashed are indistinguishable by design. Stop tracking that id |
 | **401** | `cccbr_orbitas_not_authenticated` | **No** | Missing or rejected credentials. Check the Application Password |
 | **403** | `cccbr_orbitas_forbidden` | **No** | The account is valid but lacks `cccbr_orbitas_read_propiedades`. Ask CCCBR to grant it |
 | **404** | `rest_no_route` | **No** | Wrong path or method |
@@ -364,9 +389,7 @@ that matches nothing at all appears, as `option_value_unmapped`.
 3. **`url` may not resolve** for trashed properties. It is there for audit, not for linking.
 4. **`video_url` and `map_raw` are raw user input** — neither validated nor normalized. Expect
    non-URL text in `video_url` on a handful of properties.
-5. **No single-property route.** The endpoint is a collection only. Re-fetch a property by walking
-   with `after_id = id - 1` and `per_page = 1`.
-6. **No "modified since" filter**, by design — see §4.
+5. **No "modified since" filter**, by design — see §4.
 
 ---
 
@@ -381,8 +404,10 @@ that matches nothing at all appears, as `option_value_unmapped`.
 5. Record `pagination.max_id` and `generated_at` from the first page.
 6. Reconcile: your row count must equal the first page's `totals.total` (plus anything added during
    the walk), and your distinct ids must equal that count.
-7. Import. Everywhere a `value` is `null`, keep `raw` and queue it for review.
+7. Import. Everywhere a number is `null`, queue the matching issue's `detail` for review.
 8. Aggregate the `issues` codes into a report for CCCBR — that list is the data-cleanup backlog, and
    it is the same list in §8 above.
 9. Agree with CCCBR on the three decisions the data cannot make for you: the currency default,
    whether a Marketplace id field should exist, and what the two unmapped option tokens mean.
+10. For ongoing refreshes, use `…/propiedades/{id}` for single records and a full walk for the
+    periodic sweep.

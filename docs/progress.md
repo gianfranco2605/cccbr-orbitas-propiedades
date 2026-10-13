@@ -1479,3 +1479,92 @@ Walk: **27 pages**, 332 queries, 5.9 s inside the endpoint. Gallery images retur
 | `location_missing` | 1063 | 1019 | −44 |
 | `media_attachment_missing` | 334 | 326 | −8 |
 | `associate_id_missing` | 25 | **8** | −17: most properties without an associate number were trashed |
+
+---
+
+# Change request 3 — 2026-10-13 — single property by ID
+
+Orbitas must be able to refresh one property without reading the whole collection. This **extends
+the "Route" row** of the decisions table, now updated in `CLAUDE.md`. Purely additive: nothing about
+the collection route or the property object changed.
+
+## How it was implemented
+
+The new callback is thin on purpose, because `PropertyRepository::find_posts()` already does the
+hard part: it restricts to `cccbr-propiedades` **and** to the exported statuses. So the single route
+loads by id through that same method, and every rejection case collapses into one empty result —
+an unknown id, a post of another type, a trashed property, an `auto-draft` and an `inherit` row all
+produce the same `404` **without a branch written for any of them**. The same repository and the
+same mappers also mean the object cannot drift from the collection's.
+
+### Files changed
+- `src/Rest/PropertiesController.php` — second route `(?P<id>\d+)` with the same
+  `permission_callback`; `get_item()`; `not_found()`; `item_params()`; and the new
+  `NOT_FOUND_CODE` constant whose docblock records **why** one code covers every case.
+- `src/Rest/QueryArgs.php` — `is_positive_integer()` (pure, so the rule is unit-tested) and
+  `validate_id()` which wraps it in the `WP_Error` the REST layer needs.
+- `tests/unit/QueryArgsTest.php` — **17 new tests** over the id rule: 5 accepted shapes (string
+  digits, native int, `1`, space-padded, leading zeros) and 12 rejected (`0`, native `0`, negative,
+  decimal, words, mixed, empty, whitespace, `null`, array, `true`, scientific notation).
+- `tools/bootstrap.php` — `cccbr_orbitas_tools_request_item()`.
+- `tools/reconcile.php` — keeps one mapped item per page during the walk, then fetches each of those
+  ids through the single route and compares with `===`. New report section §5, later sections
+  renumbered.
+- `postman/…collection.json` — a new **Single property** folder with 8 requests: remember a
+  collection item, fetch it by id and assert equality, `404` for an unknown id, `404` for a trashed
+  id **with the same message** (skipped unless `trashed_id` is configured), `id=0` → 400, 401, 403,
+  and a refused `POST`. Collection now **31 requests / 88 assertions**.
+- Docs: `docs/contract.md` (title, §1 routes table, new §3.1 and §3.2, §6 error rows, §6.3, §7, §9),
+  `docs/consumer-guide.md` (§3 rewritten for two requests, retry table, limitations, checklist),
+  `README.md`, `CHANGELOG.md` (0.4.0), `docs/REPORT.md`, `CLAUDE.md`, `docs/plan.md`.
+- Version **0.4.0**; the plugin header's description now says "endpoints".
+
+## Verification
+
+### Gates
+| Check | Result |
+|---|---|
+| `composer lint` | no syntax errors |
+| `composer cs` | **0 errors / 0 warnings** |
+| `composer stan` | **No errors** (level 8) |
+| `composer test` | **OK (112 tests, 290 assertions)** — 17 new |
+
+### HTTP
+| Request | Result |
+|---|---|
+| `/propiedades/80187` | **200**, 35 fields, `status: publish` |
+| identical to the collection item | **yes, `===`** on the whole body |
+| `/propiedades/999999999` (unknown) | **404** `cccbr_orbitas_property_not_found` |
+| `/propiedades/1` (a post of another type) | **404**, same code, same message |
+| `/propiedades/9536` (the WPUF form post) | **404**, same code, same message |
+| `/propiedades/184171` (a **trashed** property) | **404**, same code, same message |
+| `/propiedades/120295` (an **attachment**, status `inherit`) | **404**, same code — found by accident while spot-checking, and exactly the specified behaviour |
+| `/propiedades/0` | **400** `rest_invalid_param`, `data.details.id.code = cccbr_orbitas_invalid_id` |
+| `/propiedades/abc` | **404** `rest_no_route` — the pattern only matches digits |
+| no credentials / without the capability | **401** / **403**, same codes as the collection |
+| `POST /propiedades/80187` | **404** — only a readable method is registered |
+| `OPTIONS /propiedades/80187` | **200**, schema `cccbr_orbitas_propiedad`, args `id` |
+| `/wp-json/cccbr-orbitas/v1` | lists both routes |
+| spot check on 4 ids spread across the set (80187, 120298, 160151, 184187) | all **200** and all **strictly identical** to their collection item |
+| `logs wordpress`, whole log | **0** entries from this plugin |
+
+### Reconciliation — **22 of 22 checks pass**
+The new §5 "The single-property route":
+
+| Check | Result |
+|---|---|
+| Ids sampled from the walk | **27** |
+| Single-property responses **identical** to the collection item | **27** |
+| Responses that differ | **0** |
+| Sampled ids the single route did not return with 200 | **0** |
+
+Everything else is unchanged from change request 2: 2672 properties over 27 pages, no omissions, no
+duplicates, no phantom ids, `skipped_ids` empty, 248 authors, and every field-level count matching
+the database.
+
+## A note on the 404 design
+Requirement 3 asked for one code and one message so the response does not reveal which case
+applies, and that is what ships. It is worth recording the reasoning in the code as well as the
+docs — which the `NOT_FOUND_CODE` docblock now does — because the natural instinct when debugging is
+to "helpfully" split these into distinct errors, and that would quietly turn the endpoint into a
+probe for what exists on the site.

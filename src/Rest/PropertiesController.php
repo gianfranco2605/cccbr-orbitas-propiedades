@@ -41,6 +41,16 @@ final class PropertiesController {
 	public const REST_BASE = 'propiedades';
 
 	/**
+	 * The one error a missing property reports.
+	 *
+	 * Deliberately the same code and message whether the id does not exist, belongs to another post
+	 * type, is in the trash, or is an `auto-draft`/`inherit` row. Distinguishing them would let an
+	 * authorized-but-curious caller probe the site's contents through the differences — and an
+	 * importer has nothing to do differently in any of those cases.
+	 */
+	public const NOT_FOUND_CODE = 'cccbr_orbitas_property_not_found';
+
+	/**
 	 * Authorization service.
 	 *
 	 * @var Permissions
@@ -109,6 +119,20 @@ final class PropertiesController {
 				'schema' => array( $this->schema, 'collection' ),
 			)
 		);
+
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/' . self::REST_BASE . '/(?P<id>\d+)',
+			array(
+				array(
+					'methods'             => WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'get_item' ),
+					'permission_callback' => array( $this->permissions, 'check' ),
+					'args'                => $this->item_params(),
+				),
+				'schema' => array( $this->schema, 'item' ),
+			)
+		);
 	}
 
 	/**
@@ -175,6 +199,85 @@ final class PropertiesController {
 		$response->header( 'Cache-Control', 'no-store' );
 
 		return $response;
+	}
+
+	/**
+	 * Serves one property.
+	 *
+	 * The body is the property object itself, with no envelope: there is no pagination to report,
+	 * and `totals` would be meaningless for a single record. It is built by the **same** repository
+	 * and the same mappers the collection uses, so a property is byte-identical in both routes —
+	 * `tools/reconcile.php` checks that on a sample of ids rather than trusting it.
+	 *
+	 * @param WP_REST_Request $request Incoming request.
+	 * @return WP_REST_Response|WP_Error
+	 *
+	 * @phpstan-param WP_REST_Request<array<string, mixed>> $request
+	 */
+	public function get_item( WP_REST_Request $request ) {
+		$raw_id = $request->get_param( 'id' );
+
+		if ( ! QueryArgs::is_positive_integer( $raw_id ) ) {
+			return $this->not_found();
+		}
+
+		$id = (int) $raw_id;
+
+		/*
+		 * find_posts() already restricts to this post type and to the exported statuses, so a
+		 * trashed property, an `auto-draft`, an `inherit` row, a post of another type and an id that
+		 * does not exist all come back the same way: an empty result, answered with one 404.
+		 */
+		$posts = $this->repository->find_posts( array( $id ) );
+
+		if ( array() === $posts ) {
+			return $this->not_found();
+		}
+
+		$post = $posts[0];
+		$meta = get_post_meta( $post->ID );
+		$meta = is_array( $meta ) ? $meta : array();
+
+		$this->mapper->prime( $posts, array( $post->ID => $meta ) );
+
+		$response = new WP_REST_Response( $this->mapper->map( $post, $meta ) );
+
+		// The payload carries personal data of the property creator: it must not be cached by any
+		// intermediary.
+		$response->header( 'Cache-Control', 'no-store' );
+
+		return $response;
+	}
+
+	/**
+	 * The single 404 every "no such property" case returns.
+	 *
+	 * @return WP_Error
+	 */
+	private function not_found(): WP_Error {
+		return new WP_Error(
+			self::NOT_FOUND_CODE,
+			__( 'No exported property has that id.', 'cccbr-orbitas-propiedades' ),
+			array( 'status' => 404 )
+		);
+	}
+
+	/**
+	 * Declares the single-property route's arguments.
+	 *
+	 * @return array<string, array<string, mixed>>
+	 */
+	private function item_params(): array {
+		return array(
+			'id' => array(
+				'description'       => __( 'WordPress post ID of the property.', 'cccbr-orbitas-propiedades' ),
+				'type'              => 'integer',
+				'required'          => true,
+				'minimum'           => 1,
+				'validate_callback' => array( QueryArgs::class, 'validate_id' ),
+				'sanitize_callback' => 'absint',
+			),
+		);
 	}
 
 	/**

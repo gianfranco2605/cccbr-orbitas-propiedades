@@ -1,6 +1,6 @@
 # Reconciliation — `GET /wp-json/cccbr-orbitas/v1/propiedades`
 
-Produced by `tools/reconcile.php` on **2026-10-13 18:40:13 UTC**, against the local replica.
+Produced by `tools/reconcile.php` on **2026-10-13 18:52:10 UTC**, against the local replica.
 The tool walks the whole collection through `rest_do_request()` as an administrator, then
 reads the same facts straight from the database and compares them. It writes nothing, and
 reports only counts, identifiers and booleans — never a personal value.
@@ -21,7 +21,7 @@ comparison against the unfiltered table would measure two different populations.
 | `pagination.max_id` reported | 184589 |
 | Ids selected but not loadable (`pagination.skipped_ids`) | 0 |
 | Database queries for the whole walk | 332 |
-| Time inside the endpoint | 5.87 s |
+| Time inside the endpoint | 4.88 s |
 
 ## 2. Totals and unique ids
 
@@ -75,7 +75,21 @@ comparison against the unfiltered table would measure two different populations.
 | Page past the end reports `has_more` | ✅ false |
 | Page past the end reports `next_after_id` | ✅ null |
 
-## 5. Data-quality issues reported by the endpoint
+## 5. The single-property route
+
+| Check | Result |
+|---|---|
+| Ids sampled from the walk | 27 |
+| Single-property responses that are **identical** to the collection item | 27 |
+| Responses that differ | 0 |
+| Sampled ids the single route did not return with 200 | 0 |
+
+Identity is compared with `===` on the whole decoded body, so a difference in a nested
+value, a type or the field order would all show up. Both routes go through the same
+repository and the same mappers; this check is what makes that a verified fact rather than
+an assumption.
+
+## 6. Data-quality issues reported by the endpoint
 
 | Code | Occurrences |
 |---|---|
@@ -108,7 +122,7 @@ The counts above are **properties**, not occurrences: one property can raise
 These describe the **source data**, not endpoint failures: every property is still
 returned in full. See `docs/contract.md` §4.11 for what each code means.
 
-## 6. Limitations of this run
+## 7. Limitations of this run
 
 - **Media file existence is not checked here.** `wp-content/uploads` on the replica holds no
   media and every request redirects to production, so the check is switched off for these
@@ -121,7 +135,7 @@ returned in full. See `docs/contract.md` §4.11 for what each code means.
 - `totals` is a per-request snapshot. On a quiet replica it is stable across the walk; on a
   live site it can drift, which is why the checks above compare **unique ids**, not only counts.
 
-## 7. Verdict
+## 8. Verdict
 
-**21 of 21 checks passed.** The endpoint returns every property in the source exactly once, and every
+**22 of 22 checks passed.** The endpoint returns every property in the source exactly once, and every
 field-level count agrees with the database.

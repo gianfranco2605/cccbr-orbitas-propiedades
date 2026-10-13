@@ -1,10 +1,13 @@
-# Response contract — `GET /wp-json/cccbr-orbitas/v1/propiedades`
+# Response contract — the CCCBR Orbitas properties API
 
-Version **0.3.0**. Derived from the measured source schema in [`docs/schema.md`](schema.md) — every
+Version **0.4.0**. Derived from the measured source schema in [`docs/schema.md`](schema.md) — every
 field below names the real source key it comes from. Where the contract sketch in `LOOP_PROMPT.md`
 §6 had to change, the reason is given in [§9](#9-changes-against-the-contract-sketch).
 
-> **0.3.0 excludes trashed properties entirely.** CCCBR decided that deleted properties must not
+> **0.4.0 adds a single-property route**, `GET …/propiedades/{id}`, so a consumer can refresh one
+> record without walking the collection. Purely additive.
+>
+> **0.3.0 excluded trashed properties entirely.** CCCBR decided that deleted properties must not
 > reach Orbitas. `trash` is no longer a default status, `?status=trash` is a **400**, `totals` does
 > not count trashed properties, and the `trash` object is gone from the item. The export is
 > **2672** properties, not 3055.
@@ -26,10 +29,9 @@ in this repository comes from it.
 
 | | |
 |---|---|
-| Route | `GET /wp-json/cccbr-orbitas/v1/propiedades` |
+| Routes | `GET /wp-json/cccbr-orbitas/v1/propiedades` — the collection (§3)<br>`GET /wp-json/cccbr-orbitas/v1/propiedades/{id}` — one property (§3.1) |
 | Namespace / version | `cccbr-orbitas/v1` |
-| Methods | `GET` (and `HEAD`). The route is **read-only**: it has no side effects and registers no writable method |
-| Collection only | There is **no** `…/propiedades/<id>` single-item route |
+| Methods | `GET` (and `HEAD`) on both. They are **read-only**: no side effects, and no writable method is registered |
 | Authentication | WordPress **Application Passwords** over HTTP Basic. No custom auth, no JWT, no API key |
 | Authorization | capability **`cccbr_orbitas_read_propiedades`** |
 | Who has it | granted to the `administrator` role on plugin activation; removed on uninstall. The plugin never creates users or application passwords |
@@ -43,6 +45,10 @@ curl -s -u "<user>:<application password>" \
 
 The application password must be sent as the HTTP Basic password with its spaces intact (WordPress
 accepts them with or without). Credentials are **never** accepted as query parameters.
+
+**Both routes share the same authentication and the same capability.** Everything in §4 (the
+property object), §6 (errors) and §7 (guarantees) applies to both; §2 and §5 are about the
+collection's arguments and pagination.
 
 ---
 
@@ -110,6 +116,40 @@ and attachments, and `trash` is excluded by the client's decision.
 
 `totals` is computed with one aggregate query per request, so it is a snapshot of the moment, not of
 the whole walk (§5).
+
+### 3.1 One property — `GET …/propiedades/{id}`
+
+```
+GET /wp-json/cccbr-orbitas/v1/propiedades/184589
+```
+
+| | |
+|---|---|
+| `id` | the WordPress post id, a **positive integer**. The route pattern is `(?P<id>\d+)`, and the argument is additionally validated, because the pattern also matches `0` |
+| Body | **the property object itself** (§4), with no envelope — there is no pagination to report and `totals` would be meaningless for one record |
+| Identical to the collection | **yes, guaranteed.** Both routes go through the same repository and the same mappers, so the same property is the same object down to field order. `tools/reconcile.php` verifies it with `===` on a sample of ids every run (27 of 27 identical at the time of writing) |
+| `200` | the property exists and is exported |
+| `404` | **every** other case — see below |
+| `400` | `id` is not a positive integer (`/propiedades/0`), reported as `rest_invalid_param` with `data.details.id.code = cccbr_orbitas_invalid_id` |
+
+**One 404 for every "no such property" case.** These all return the same status, the same
+`code` — `cccbr_orbitas_property_not_found` — and the same message:
+
+- the id does not exist at all,
+- it belongs to a different post type,
+- it is a **trashed** property (not exported since 0.3.0),
+- it is an `auto-draft` or an `inherit` row.
+
+That is deliberate. Distinguishing them would let an authorized-but-curious caller map the site's
+contents through the differences, and an importer has nothing to do differently in any of those
+cases. A `404` means exactly "no exported property has that id".
+
+### 3.2 Which route to use
+
+Walk the collection for a full or incremental import; use the single route to **refresh one
+record** — after a webhook, a retry, or a user asking for a specific listing. Do **not** walk the
+collection and then re-fetch each item individually: the collection already returns the complete
+object, and 2672 single requests cost far more than 27 pages.
 
 ---
 
@@ -458,7 +498,8 @@ Standard WordPress REST error envelope, with a **stable `code`** and a translate
 |---|---|---|
 | **401** | `cccbr_orbitas_not_authenticated` | no authenticated user (missing or rejected credentials) |
 | **403** | `cccbr_orbitas_forbidden` | authenticated, but the user lacks `cccbr_orbitas_read_propiedades` |
-| **404** | `rest_no_route` | wrong path or method (WordPress core) |
+| **404** | `cccbr_orbitas_property_not_found` | the single route: no exported property has that id — unknown, other post type, trashed, `auto-draft` or `inherit`, all indistinguishable (§3.1) |
+| **404** | `rest_no_route` | wrong path or method (WordPress core). `/propiedades/abc` lands here, because the route pattern only matches digits |
 | **500** | `cccbr_orbitas_unexpected` | an unexpected server error; the message never leaks internals |
 
 ### 6.2 400 — our code is nested, because WordPress wraps argument errors
@@ -490,6 +531,7 @@ specific code appears under `data.details.<argument>.code`:
 | **400** | `rest_invalid_param` | `cccbr_orbitas_invalid_per_page` | `per_page` is not an integer in `1…100` (verified for `101`, `0`, `abc`, `50.5`) |
 | **400** | `rest_invalid_param` | `cccbr_orbitas_invalid_after_id` | `after_id` is not an integer `>= 0` (verified for `-1`, `xyz`) |
 | **400** | `rest_invalid_param` | `cccbr_orbitas_invalid_status` | a `status` value is not one of the six allowed statuses (verified for `auto-draft`, `inherit`, `publish,bogus`) |
+| **400** | `rest_invalid_param` | `cccbr_orbitas_invalid_id` | the single route's `id` is not a positive integer (verified for `0`) |
 
 So a consumer checks **`data.details.<argument>.code`** for the specific reason and
 `data.params` for the human message. The same stable codes also appear at the top level if the
@@ -502,10 +544,13 @@ trace, or the rejected value echoed back.
 
 ### 6.3 Discovering the schema
 
-`OPTIONS` on the route returns the full collection schema (verified: title
-`cccbr_orbitas_propiedades_collection`, the four envelope members, **38** documented property
-fields) together with the three arguments and their constraints, so a consumer can generate types
-from the live endpoint instead of transcribing this document.
+`OPTIONS` on either route returns its JSON Schema, so a consumer can generate types from the live
+API instead of transcribing this document:
+
+- `OPTIONS …/propiedades` → `cccbr_orbitas_propiedades_collection`: the four envelope members and
+  **35** documented property fields, plus the three arguments and their constraints.
+- `OPTIONS …/propiedades/{id}` → `cccbr_orbitas_propiedad`: the property object alone, plus the `id`
+  argument.
 
 ---
 
@@ -513,10 +558,10 @@ from the live endpoint instead of transcribing this document.
 
 **Guaranteed**
 
-- Read-only: no `GET` to this route changes any data.
+- Read-only: no `GET` to either route changes any data.
 - Every status in the source is reachable; there is **no** implicit filter by date, publication,
   featured flag or associate status.
-- The item shape is stable: no field is ever omitted.
+- The item shape is stable: no field is ever omitted, and **the two routes return the identical object** for the same property.
 - Field names and `code`/`issues` values are stable within `v1`; new fields may be **added**.
 - No secret, credential or personal field outside the allow-list in §4.10 is ever returned.
 
@@ -575,4 +620,5 @@ Each change is required by a measurement in `docs/schema.md`; none of them touch
 | `associate_id` "from a real source field" | user meta `numero-de-asociado` | the only real source; flagged as Q4 because it is user meta |
 | `marketplace_id` "from a real source field, else `null`" | always `null` | no such field exists anywhere in the source (§4.10) |
 | `issues`: "machine-readable codes" | the fixed 22-code list in §4.11, each `{ code, field, detail }` | needed a concrete, stable enumeration to be consumable |
+| "Route … read-only, **collection only**" | a second route, `…/propiedades/{id}`, returning the same object | CCCBR asked in change request 3 for a way to refresh one property without reading the whole collection. This **extends** that row; the route is read-only and shares the collection's authentication and capability |
 | "**All** statuses of the CPT by default … `trash`" and the whole "Trashed properties" row | **trashed properties are not exported at all**: not in the default set, not accepted as a filter, not counted in `totals`, and the `trash` object is gone | CCCBR decided in change request 2 that deleted properties must not reach Orbitas. This overrides those two rows of the decisions table, and the three trash meta keys are no longer read anywhere |

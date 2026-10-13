@@ -79,6 +79,70 @@ final class QueryArgsTest extends TestCase {
 	}
 
 	/**
+	 * Values the single-property route must accept as an id.
+	 *
+	 * @return array<string, array{0: mixed}>
+	 */
+	public function provide_valid_ids(): array {
+		return array(
+			'string digits'        => array( '184589' ),
+			'native integer'       => array( 184589 ),
+			'one'                  => array( '1' ),
+			'surrounded by spaces' => array( '  42  ' ),
+			'leading zeros'        => array( '007' ),
+		);
+	}
+
+	/**
+	 * A positive whole number is a usable id.
+	 *
+	 * @dataProvider provide_valid_ids
+	 *
+	 * @param mixed $value Raw parameter value.
+	 * @return void
+	 */
+	public function test_valid_ids_are_accepted( $value ): void {
+		$this->assertTrue( QueryArgs::is_positive_integer( $value ) );
+	}
+
+	/**
+	 * Values that are not a usable post id.
+	 *
+	 * @return array<string, array{0: mixed}>
+	 */
+	public function provide_invalid_ids(): array {
+		return array(
+			'zero'            => array( '0' ),
+			'native zero'     => array( 0 ),
+			'negative'        => array( '-1' ),
+			'decimal'         => array( '1.5' ),
+			'words'           => array( 'abc' ),
+			'mixed'           => array( '12abc' ),
+			'empty string'    => array( '' ),
+			'whitespace only' => array( '   ' ),
+			'null'            => array( null ),
+			'array'           => array( array( 1 ) ),
+			'boolean true'    => array( true ),
+			'scientific'      => array( '1e3' ),
+		);
+	}
+
+	/**
+	 * Anything that is not a positive whole number is rejected.
+	 *
+	 * `0` matters in particular: the route pattern `(?P<id>\d+)` matches it, so only this rule
+	 * keeps `/propiedades/0` from reaching the lookup.
+	 *
+	 * @dataProvider provide_invalid_ids
+	 *
+	 * @param mixed $value Raw parameter value.
+	 * @return void
+	 */
+	public function test_invalid_ids_are_rejected( $value ): void {
+		$this->assertFalse( QueryArgs::is_positive_integer( $value ) );
+	}
+
+	/**
 	 * The page-size bounds the contract promises.
 	 *
 	 * @return void
