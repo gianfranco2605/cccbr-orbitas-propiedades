@@ -101,3 +101,24 @@ payload starts lean and grows only on request. Changes 1–5 are **breaking** fo
   how the property was saved in the source — so consumers should de-duplicate by media `id`.
 - [x] Re-run `tools/reconcile.php`, refresh `docs/reconciliation.md`, and add the number of
   properties per location issue code (aggregates only).
+
+---
+
+## Change request 2 — 2026-10-13 — exclude trashed properties
+
+CCCBR decided that trashed properties must not be sent to Orbitas. This **overrides the "Statuses"
+and "Trashed properties" rows** of the decisions table, both now marked superseded in `CLAUDE.md`.
+One commit.
+
+- [x] **CR2.1** — `trash` removed from the default statuses: the endpoint returns `publish`,
+  `draft`, `pending`, `private` and `future` only.
+- [x] **CR2.2** — the `status` filter rejects `trash` with a 400, like any other invalid value.
+- [x] **CR2.3** — every trash-only field removed from the contract and the code: the `trash` object,
+  historical slug, status before trash, trash date, and the readers of `_wp_desired_post_slug`,
+  `_wp_trash_meta_status` and `_wp_trash_meta_time`.
+- [x] **CR2.4** — `totals` no longer counts trashed properties.
+- [x] **CR2.5** — `docs/contract.md`, `docs/schema.md`, `docs/consumer-guide.md`, `README.md`,
+  `CHANGELOG.md`, `CLAUDE.md`, the unit tests and the Postman collection updated.
+- [x] **CR2.6** — full checks re-run (lint, cs, stan, test) and `tools/reconcile.php` re-run with
+  the new counts reported.
+- [x] **CR2.7** — committed on `main`, not pushed.

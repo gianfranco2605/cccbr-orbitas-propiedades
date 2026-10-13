@@ -26,27 +26,36 @@ listed in [§10](#10-differences-from-loop_promptmd-4).
 
 ### 1.1 Statuses present
 
-| Status | Posts |
-|---|---|
-| `publish` | 2612 |
-| `trash` | 383 |
-| `draft` | 60 |
-| **Total** | **3055** |
+| Status | Posts in the source | Exported? |
+|---|---|---|
+| `publish` | 2612 | yes |
+| `draft` | 60 | yes |
+| `trash` | 383 | **no** |
+| **Total in the source** | **3055** | **2672 exported** |
 
 **VERIFIED.** No `pending`, `private`, `future`, `auto-draft` or `inherit` post exists for this CPT
-today. The endpoint still accepts and documents the full status list from the decisions table so the
-contract does not change if one appears later; `auto-draft` and `inherit` stay excluded by design
-(`auto-draft` is an unsaved editor placeholder, `inherit` belongs to revisions and attachments).
+today.
 
-### 1.2 Trashed posts
+**Trashed properties are not exported** (change request 2): CCCBR decided a deleted property must
+not reach Orbitas. The endpoint still accepts `pending`, `private` and `future` so the contract does
+not change if one appears later. `auto-draft` and `inherit` stay excluded by design — `auto-draft`
+is an unsaved editor placeholder, `inherit` belongs to revisions and attachments.
+
+**Every figure below counts the whole source table (3055).** Where a number matters for the export,
+the re-measured exported figure is in `docs/reconciliation.md`, which filters to the 2672.
+
+### 1.2 Trashed posts — measured, then excluded
 
 | Fact | Value |
 |---|---|
 | `_wp_trash_meta_status`, `_wp_trash_meta_time`, `_wp_desired_post_slug` | **383 posts each — exactly the trashed set** (**VERIFIED**) |
 | Trashed posts whose `post_name` still carries the `__trashed` suffix | 373 of 383 (**VERIFIED**) |
 
-So `historical_slug` must come from `_wp_desired_post_slug` (present for all 383), not from
-stripping the suffix: 10 trashed posts have no suffix to strip.
+These were mapped in 0.1.0–0.2.0 and are **no longer exported** (change request 2). The three meta
+keys are not read anywhere in the plugin now, and the `trash` object is gone from the contract. The
+measurement is kept because it is the reason the exported total is 2672 rather than 3055, and
+because `_wp_desired_post_slug` would be the right source again if CCCBR ever reverses the decision
+(stripping the `__trashed` suffix would not work: 10 of the 383 have no suffix).
 
 ### 1.3 Related post types (context, not exposed)
 
@@ -232,9 +241,6 @@ properties carrying the key. Nothing on the CPT is omitted from this table.
 | `4437ad177c1679b1090c78835bb6c221_lat` | 499 | `coordinates.lat` | see §5 |
 | `4437ad177c1679b1090c78835bb6c221_lng` | 499 | `coordinates.lng` | see §5 |
 | `4437ad177c1679b1090c78835bb6c221_hash` | 499 | staleness check only | see §5 |
-| `_wp_desired_post_slug` | 383 | `historical_slug` | trashed posts only |
-| `_wp_trash_meta_status` | 383 | `status_before_trash` | trashed posts only |
-| `_wp_trash_meta_time` | 383 | `trashed_at_gmt` | Unix timestamp |
 | `_wpuf_form_id` | 2515 | `origin.wpuf_form_id` | 2512 rows = form **9536** (`wpuf_forms` post "PublicarPropiedades"), 3 empty |
 | the 29 meta-box fields of §2 | — | see §2 | — |
 
@@ -278,6 +284,9 @@ properties carrying the key. Nothing on the CPT is omitted from this table.
 | `theme-transparent-header-meta` | 5 | Astra transparent header |
 | `foto-del-contrato`, `documentos-anexos` | 1089 / 5 | **Private documents.** Exposed only as the booleans `private_documents.has_contract_photo` / `has_attachments` per the decisions table |
 | `nombre-de-propiedad` | 5 | Superseded by `post_title`; a value that differs from the title raises an `issues` code instead of a field |
+| `_wp_desired_post_slug` | 383 | **Trashed properties are not exported** (change request 2), so the trash meta is never read. Was `historical_slug` in 0.1.0–0.2.0 |
+| `_wp_trash_meta_status` | 383 | Same: was `status_before_trash` |
+| `_wp_trash_meta_time` | 383 | Same: was `trashed_at_gmt` |
 
 ### 3.3 `NULL` meta values — a trap worth naming
 
@@ -469,5 +478,7 @@ is used.
   non-existent attachment ids, 334 references, 118 properties.
 - Media file existence (impossible locally — Q3).
 - Per-page query count and timing (Task 10).
-- Full-walk count/ID reconciliation against these totals (Task 11): expected **3055** unique ids,
-  2612 `publish` / 383 `trash` / 60 `draft`, 250 distinct authors.
+- ~~Full-walk count/ID reconciliation against these totals~~ — **done**, and re-done after each
+  change request. The export is now **2672** unique ids (2612 `publish` + 60 `draft`) from **248**
+  distinct authors; the 383 trashed properties and the 2 authors who owned only trashed ones are
+  excluded. `docs/reconciliation.md` holds the current figures.

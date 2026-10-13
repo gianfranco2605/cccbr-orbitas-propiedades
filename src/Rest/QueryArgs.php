@@ -33,14 +33,19 @@ final class QueryArgs {
 	public const PER_PAGE_MAX = 100;
 
 	/**
-	 * Statuses a caller may ask for.
+	 * Statuses a caller may ask for, and the default set when no filter is given.
 	 *
-	 * `auto-draft` (unsaved editor placeholder) and `inherit` (revisions and attachments) are
-	 * deliberately absent: they are never returned and never accepted.
+	 * Three groups are deliberately absent:
+	 *
+	 * - **`trash`** — CCCBR decided that deleted properties must not reach Orbitas. Excluding it
+	 *   here removes trashed properties from the default page, from `totals`, from the loader, and
+	 *   makes `?status=trash` a 400 like any other unknown value. One constant, four behaviours.
+	 * - `auto-draft` — an unsaved editor placeholder with no property data.
+	 * - `inherit` — belongs to revisions and attachments, not to properties.
 	 *
 	 * @var list<string>
 	 */
-	public const ALLOWED_STATUSES = array( 'publish', 'draft', 'pending', 'private', 'future', 'trash' );
+	public const ALLOWED_STATUSES = array( 'publish', 'draft', 'pending', 'private', 'future' );
 
 	/**
 	 * Page size.

@@ -145,18 +145,16 @@
 									"});",
 									"",
 									"pm.test('Every property carries the full field set', () => {",
-									"    const expected = ['amenities','associate_id','company','content','coordinates','created_at_gmt','creator','description_en','exclusivity','expiration','features','id','issues','land_use','leads_count','location','map_raw','marketplace_id','media','modified_at_gmt','operation','origin','price','private_documents','property_type','purchase_option_terms','registry_number','responsible','share','slug','sold','status','title','trash','url','video_url'];",
+									"    const expected = ['amenities','associate_id','company','content','coordinates','created_at_gmt','creator','description_en','exclusivity','expiration','features','id','issues','land_use','leads_count','location','map_raw','marketplace_id','media','modified_at_gmt','operation','origin','price','private_documents','property_type','purchase_option_terms','registry_number','responsible','share','slug','sold','status','title','url','video_url'];",
 									"    body.data.forEach(p => pm.expect(Object.keys(p).sort()).to.eql(expected));",
 									"});",
 									"",
-									"pm.test('trash is null unless the property is in the trash', () => {",
+									"pm.test('No trashed property, and no trash field, is ever returned', () => {",
 									"    body.data.forEach(p => {",
-									"        if (p.status === 'trash') {",
-									"            pm.expect(Object.keys(p.trash).sort()).to.eql(['historical_slug','status_before_trash','trashed_at_gmt']);",
-									"        } else {",
-									"            pm.expect(p.trash, 'id ' + p.id).to.eql(null);",
-									"        }",
+									"        pm.expect(p.status, 'id ' + p.id).to.not.eql('trash');",
+									"        pm.expect(p).to.not.have.property('trash');",
 									"    });",
+									"    pm.expect(Object.keys(body.totals.by_status)).to.not.include('trash');",
 									"});",
 									"",
 									"pm.test('location always has province, canton and district', () => {",
@@ -805,6 +803,72 @@
 								"exec": [
 									"pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
 									"pm.test('One bad value rejects the whole argument', () => {",
+									"    pm.expect(pm.response.json().data.details.status.code).to.eql('cccbr_orbitas_invalid_status');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "status trash is refused",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}{{route}}?status=trash",
+							"host": [
+								"{{base_url}}{{route}}"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "trash"
+								}
+							]
+						},
+						"description": "CCCBR decided trashed properties are not sent to Orbitas, so trash is not a valid filter value either - it is rejected like any unknown status."
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+									"pm.test('Reported as an invalid status', () => {",
+									"    pm.expect(pm.response.json().data.details.status.code).to.eql('cccbr_orbitas_invalid_status');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "status list containing trash is refused",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}{{route}}?status=publish,trash",
+							"host": [
+								"{{base_url}}{{route}}"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "publish,trash"
+								}
+							]
+						},
+						"description": "One excluded value rejects the whole argument, rather than silently exporting the valid part."
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+									"pm.test('Reported as an invalid status', () => {",
 									"    pm.expect(pm.response.json().data.details.status.code).to.eql('cccbr_orbitas_invalid_status');",
 									"});"
 								]

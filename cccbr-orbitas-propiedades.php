@@ -3,7 +3,7 @@
  * Plugin Name:       CCCBR Orbitas Propiedades
  * Plugin URI:        https://github.com/gianfranco2605/cccbr-orbitas-propiedades
  * Description:       Authenticated, read-only REST endpoint exposing all CCCBR properties (data, media, relations and creator) for the Orbitas Marketplace import.
- * Version:           0.2.0
+ * Version:           0.3.0
  * Requires at least: 6.9
  * Requires PHP:      8.1
  * Author:            ElPuas Digital Crafts
@@ -24,7 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-const CCCBR_ORBITAS_VERSION = '0.2.0';
+const CCCBR_ORBITAS_VERSION = '0.3.0';
 
 define( 'CCCBR_ORBITAS_PLUGIN_FILE', __FILE__ );
 define( 'CCCBR_ORBITAS_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );

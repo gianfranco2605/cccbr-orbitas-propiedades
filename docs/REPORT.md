@@ -1,4 +1,4 @@
-# Final report — CCCBR Orbitas Propiedades v0.2.0
+# Final report — CCCBR Orbitas Propiedades v0.3.0
 
 **Date:** 13 October 2026 · **Author:** ElPuas Digital Crafts · **Status:** complete on the local
 replica, **not deployed** (deployment to production is outside this scope).
@@ -16,17 +16,18 @@ GET /wp-json/cccbr-orbitas/v1/propiedades
 
 - **Authentication:** WordPress Application Passwords (HTTP Basic). No custom auth, no JWT.
 - **Authorization:** the dedicated capability `cccbr_orbitas_read_propiedades`.
-- **Scope:** all 3055 properties, every status, each item carrying its own status. No implicit
-  filter by date, publication state or associate status.
+- **Scope:** every property that is **not in the trash** — **2672** today, each carrying its own
+  status. Trashed properties are excluded by CCCBR's decision (change request 2); there is no
+  implicit filter by date, publication state or associate status.
 - **Pagination:** keyset cursor on ascending post id; `per_page` default 50, maximum 100.
-- **Per property:** 36 fields — identity and lifecycle (with a single nullable `trash` object),
-  classification, prices and features as plain numbers, location as
+- **Per property:** 35 fields — identity and lifecycle, classification, prices and features as
+  plain numbers, location as
   `{ province, canton, district }`, coordinates, media (originals only), private-document booleans,
   creator / responsible / company, associate id, lead count, origin, and a list of data-quality
   `issues`.
 - **0.2.0 trimmed the payload** after a review: no image derivatives, no `{ raw, value }` wrappers,
-  the trash fields grouped, the location named, and one issue code dropped. `CHANGELOG.md` lists
-  every change; it is breaking for anyone who integrated against 0.1.0.
+  the trash fields grouped, the location named, and one issue code dropped. **0.3.0 then dropped
+  trashed properties entirely.** `CHANGELOG.md` lists every change; both releases are breaking.
 
 The old plugin `cccbr-api-propiedades` was not modified, reused or deactivated; it still serves its
 own public `cccbr/v1` route, and was read only as reference.
@@ -87,14 +88,14 @@ Decisions worth defending:
 | | Criterion | Result | Evidence |
 |---|---|---|---|
 | **AC1** | Contract documented from the real schema | ✅ | `docs/schema.md` (every meta key with counts, included or excluded with a reason) → `docs/contract.md` (route, auth, args, 38 fields with type, nullability and source key, pagination, limits, errors). The same schema is published live through `OPTIONS` |
-| **AC2** | Full walk returns every property; statuses documented; no implicit filter | ✅ | 31 pages return **3055** properties; statuses `publish` 2612 / `trash` 383 / `draft` 60, each item carrying its own. `docs/reconciliation.md` §1–2 |
-| **AC3** | Counts and unique ids reconciled against the database, total and by status / author | ✅ | **22 of 22** checks pass: 3055 = 3055, **0** ids missing, **0** phantom, **0** duplicates, three statuses agreeing across walk / `totals` / database, **250** distinct authors with **0** per-author count differing. `docs/reconciliation.md` |
+| **AC2** | Full walk returns every property; statuses documented; no implicit filter | ✅ | 27 pages return **2672** properties — the whole exported population; `publish` 2612 / `draft` 60, each item carrying its own status. Trashed properties are excluded by an explicit client decision, recorded in `CLAUDE.md` and `docs/contract.md` §2, not by an implicit filter. `docs/reconciliation.md` §1–2 |
+| **AC3** | Counts and unique ids reconciled against the database, total and by status / author | ✅ | **21 of 21** checks pass: 2672 = 2672, **0** ids missing, **0** phantom, **0** duplicates, both statuses agreeing across walk / `totals` / database, **248** distinct authors with **0** per-author count differing. Every comparison query applies the same status filter as the endpoint. `docs/reconciliation.md` |
 | **AC4** | Complete fields, custom fields, taxonomy and images per property; missing items reported | ✅ | All 29 meta-box fields mapped; taxonomy with full ancestor path (5908 entries, exactly the stored relationships); 2994 featured images and 30 225 gallery images; **301** broken attachment references found and reported. `docs/reconciliation.md` §3, `docs/schema.md` §6 |
 | **AC5** | Property → creator → associate checked on a sample and in total; nothing invented | ✅ | 250 creators, **0** missing; `associate_id` absent on exactly **25** properties, matching the 2 of 250 authors with no associate number; company on **448**; `responsible` `null` everywhere because the source field is empty everywhere; `marketplace_id` `null` because no such field exists. `docs/reconciliation.md` §3, `docs/schema.md` §8 |
 | **AC6** | Tests for multiple pages, last page, zero results, limits, retries, records changed during extraction; consistency mechanism documented | ✅ | Postman: 21 requests / 62 assertions including a self-looping full walk; the same cases re-run with `curl` (`docs/progress.md`, Task 12); the mid-walk-insert case documented as a manual procedure with its automatable half asserted; mechanism in `docs/contract.md` §5 and `docs/consumer-guide.md` §4 |
 | **AC7** | 401 unauthenticated, 403 without the capability; no secrets or personal data in responses, docs or examples | ✅ | Both verified over HTTP with the two test accounts; a 100-property page has 93 key names and **none** of 40 forbidden ones; no secret or personal value in any committed file or in 13 commits of history. `docs/security-review.md` |
 | **AC8** | Consumer documentation with synthetic examples | ✅ | `docs/consumer-guide.md`: authentication, the walk, the snapshot recipe, retry table, a complete synthetic property, why numbers are `{ raw, value }`, a measured table of what the source lacks, and a first-import checklist |
-| | `composer cs` clean, `composer stan` clean, `composer test` green, PHP 8.1 compatible, no plugin entries in the logs | ✅ | 0 errors / 0 warnings; PHPStan level 8 clean; **90 tests, 255 assertions**; PHP 8.1 enforced by PHPCompatibilityWP `testVersion 8.1-` and PHPStan `phpVersion 80113`; **0** log entries from this plugin after hundreds of requests |
+| | `composer cs` clean, `composer stan` clean, `composer test` green, PHP 8.1 compatible, no plugin entries in the logs | ✅ | 0 errors / 0 warnings; PHPStan level 8 clean; **95 tests, 273 assertions**; PHP 8.1 enforced by PHPCompatibilityWP `testVersion 8.1-` and PHPStan `phpVersion 80113`; **0** log entries from this plugin after hundreds of requests |
 | | `git status` clean, every task committed, nothing pushed, production untouched | ✅ | 15 task commits plus change request 1; the repository was pushed to its private GitHub remote only when Gianfranco asked for it; no request ever reached production |
 
 ### Performance
@@ -104,7 +105,7 @@ Decisions worth defending:
 | Queries for a page of 100 properties | **4** warm, **20** cold — and the count **does not grow with the page size** (1 property costs 6; 100 properties with 1152 images cost 12). Unchanged by 0.2.0 |
 | The four queries of a warm page | keyset page, aggregate totals, lead counts, company lookup — everything else comes from bulk-primed caches |
 | HTTP, page of 100 (~860 images, 937 KB) | **0.45 – 0.54 s**, against a WordPress-plus-all-plugins baseline of 0.28 – 0.35 s |
-| Full walk of 3055 properties | **22 – 25 s**, 31 requests, ≈ 30 MB |
+| Full walk of 2672 properties | **≈ 20 s**, 27 requests |
 
 ## 4. What the data turned out to be
 

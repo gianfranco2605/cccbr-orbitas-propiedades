@@ -31,19 +31,9 @@ final class PropertySchema {
 			'properties'           => array(
 				'id'                    => $this->field( 'integer', 'Stable WordPress post ID. Also the pagination cursor key.' ),
 				'title'                 => $this->field( 'string', 'Raw post_title.' ),
-				'slug'                  => $this->field( 'string', 'Raw post_name. Trashed properties may keep the __trashed suffix.' ),
-				'url'                   => $this->nullable_field( 'string', 'Permalink for audit. Null when WordPress cannot build one.' ),
+				'slug'                  => $this->field( 'string', 'Raw post_name.' ),
+				'url'                   => $this->nullable_field( 'string', 'Permalink. Null when WordPress cannot build one.' ),
 				'status'                => $this->field( 'string', 'Current post status.' ),
-				'trash'                 => array(
-					'description'          => 'Everything that only exists for a trashed property, or null when it is not in the trash.',
-					'type'                 => array( 'object', 'null' ),
-					'additionalProperties' => false,
-					'properties'           => array(
-						'historical_slug'     => $this->nullable_field( 'string', 'Slug before trashing, from _wp_desired_post_slug.' ),
-						'status_before_trash' => $this->nullable_field( 'string', 'Status before trashing, from _wp_trash_meta_status.' ),
-						'trashed_at_gmt'      => $this->nullable_field( 'string', 'UTC ISO 8601 moment of trashing, from _wp_trash_meta_time.' ),
-					),
-				),
 				'created_at_gmt'        => $this->nullable_field( 'string', 'UTC ISO 8601 creation date, from post_date_gmt. Null for a zero date.' ),
 				'modified_at_gmt'       => $this->nullable_field( 'string', 'UTC ISO 8601 modification date, from post_modified_gmt. Null for a zero date.' ),
 				'content'               => $this->field( 'string', 'Raw stored post_content. Content filters are never applied.' ),

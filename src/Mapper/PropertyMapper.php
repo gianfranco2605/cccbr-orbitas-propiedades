@@ -22,6 +22,10 @@ use WP_Post;
  * Reading is strictly allow-listed: the mapper asks for the keys it knows and never iterates the
  * meta array, so a new plugin meta key cannot leak into the response. Nothing is inferred: a value
  * that is missing, ambiguous or broken produces `null` plus an `issues` entry.
+ *
+ * Trashed properties are out of scope entirely (see {@see \ElPuas\CCCBR\OrbitasPropiedades\Rest\QueryArgs::ALLOWED_STATUSES}),
+ * so the trash meta keys `_wp_desired_post_slug`, `_wp_trash_meta_status` and `_wp_trash_meta_time`
+ * are not read anywhere in this plugin.
  */
 final class PropertyMapper {
 
@@ -184,7 +188,6 @@ final class PropertyMapper {
 			'slug'                  => $post->post_name,
 			'url'                   => $this->permalink( $post ),
 			'status'                => $post->post_status,
-			'trash'                 => $this->map_trash( $post, $meta ),
 			'created_at_gmt'        => $this->mysql_to_iso( $post->post_date_gmt ),
 			'modified_at_gmt'       => $this->mysql_to_iso( $post->post_modified_gmt ),
 			'content'               => $post->post_content,
@@ -386,34 +389,6 @@ final class PropertyMapper {
 	}
 
 	/**
-	 * Groups everything that only exists for a trashed property.
-	 *
-	 * All three members come from the trash meta WordPress writes when a post is trashed, and they
-	 * are meaningless otherwise — which is why they live behind one nullable object instead of three
-	 * always-present fields that are `null` on 2672 of the 3055 properties.
-	 *
-	 * `historical_slug` comes from `_wp_desired_post_slug` rather than from stripping the
-	 * `__trashed` suffix off `post_name`, because 10 of the 383 trashed properties carry no suffix.
-	 *
-	 * @param WP_Post $post Property post.
-	 * @param array   $meta Raw meta.
-	 * @return array{historical_slug: string|null, status_before_trash: string|null, trashed_at_gmt: string|null}|null
-	 *
-	 * @phpstan-param array<string, mixed> $meta
-	 */
-	private function map_trash( WP_Post $post, array $meta ): ?array {
-		if ( 'trash' !== $post->post_status ) {
-			return null;
-		}
-
-		return array(
-			'historical_slug'     => $this->nullable_string( $meta, '_wp_desired_post_slug' ),
-			'status_before_trash' => $this->nullable_string( $meta, '_wp_trash_meta_status' ),
-			'trashed_at_gmt'      => $this->timestamp_to_iso( $this->first( $meta, '_wp_trash_meta_time' ) ),
-		);
-	}
-
-	/**
 	 * Maps the JetEngine post-expiration module's fields.
 	 *
 	 * 541 properties carry an expiration, all with the action `draft`. A property without one is
@@ -563,21 +538,6 @@ final class PropertyMapper {
 		}
 
 		return '';
-	}
-
-	/**
-	 * Stored value as a string, or null when missing, `NULL` or empty.
-	 *
-	 * @param array  $meta Raw meta.
-	 * @param string $key  Meta key.
-	 * @return string|null
-	 *
-	 * @phpstan-param array<string, mixed> $meta
-	 */
-	private function nullable_string( array $meta, string $key ): ?string {
-		$value = $this->string( $meta, $key );
-
-		return '' === $value ? null : $value;
 	}
 
 	/**

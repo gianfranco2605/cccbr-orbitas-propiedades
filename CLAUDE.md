@@ -30,14 +30,14 @@ Orbitas, delivering data or access to third parties.
 | Route | `GET /wp-json/cccbr-orbitas/v1/propiedades` (read-only, collection only) |
 | Authentication | WordPress **Application Passwords** (HTTP Basic). No custom auth, no JWT. |
 | Authorization | Capability `cccbr_orbitas_read_propiedades`, granted to `administrator` on activation, removed on uninstall. The plugin never creates users or passwords. |
-| Statuses | **All** CPT statuses by default (`publish`, `draft`, `pending`, `private`, `future`, `trash`); each item carries its status. Optional explicit `status` filter. `auto-draft` and `inherit` excluded and documented. |
+| Statuses | **Superseded by change request 2 (13 Oct 2026):** `publish`, `draft`, `pending`, `private`, `future` — **`trash` is excluded**. Each item carries its status; the optional `status` filter accepts only those five and returns 400 for anything else, `trash` included. `auto-draft` and `inherit` remain excluded and documented. |
 | Pagination | Keyset cursor on post ID ascending (`after_id`). `per_page` default 50, **max 100**; above max → 400. No offset pagination, no `-1`. |
 | User data | Only user ID, display name, email. Never login, password, hash, activation key, sessions, tokens, phone, national ID (cédula) or any other user meta. |
 | Associate / Marketplace IDs | Only if a real source field exists. Otherwise `null` + documented. |
 | Private documents | `foto-del-contrato` and `documentos-anexos` are **not** exposed — only a boolean saying whether each exists. |
 | Leads | Lead data **not** exposed — only the number of leads per property. |
 | Old plugin | `cccbr-api-propiedades` (public route `cccbr/v1/propiedades`) is **not** modified, reused or deactivated. Reference only. |
-| Trashed properties | Historical slug from `_wp_desired_post_slug`, previous status from `_wp_trash_meta_status`, trash date from `_wp_trash_meta_time`, mapped to contract fields (never exposed as raw meta). |
+| Trashed properties | **Superseded by change request 2 (13 Oct 2026): not exported at all.** CCCBR decided a deleted property must not reach Orbitas, so `_wp_desired_post_slug`, `_wp_trash_meta_status` and `_wp_trash_meta_time` are no longer read anywhere and the `trash` contract field is gone. The measurement stays in `docs/schema.md` §1.2 in case the decision is ever reversed. |
 | Technical meta | Not exposed: `_oembed_*`, `_elementor_*`, `_edit_*`, `_eael_*`, `_yoast_*`, `ast-*`, `astra*`, `site-*`, `header-*`, `stick-*`, `theme-transparent-*`, `adv-header-*`, `_wp_page_template`, `jet_engine_store_count_*`, internal WPUF workflow meta. Every excluded key is listed in `docs/schema.md` with its reason. |
 | Rule for every field | If Orbitas needs it to import a property, include it. If it is internal plumbing of a plugin or theme, exclude it and document why. |
 | PHPStan level | **8** (greenfield, strictly typed; type coercion of source fields is the core risk of this plugin). |

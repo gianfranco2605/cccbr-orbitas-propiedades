@@ -6,7 +6,7 @@ complete property data, images, relations and the data of the user who created e
 import them into their Marketplace.
 
 - **Author:** ElPuas Digital Crafts
-- **Version:** 0.2.0
+- **Version:** 0.3.0
 - **Requires:** WordPress 6.9+, PHP 8.1+ (production runs PHP 8.1.13)
 - **License:** GPL-2.0-or-later
 
@@ -20,10 +20,10 @@ GET /wp-json/cccbr-orbitas/v1/propiedades
 - **Authorization:** capability `cccbr_orbitas_read_propiedades` (granted to `administrator` on
   activation, removed on uninstall). The plugin never creates users or passwords.
 - **Pagination:** keyset cursor on ascending post ID (`after_id`); `per_page` default 50, maximum 100.
-- **Scope:** all statuses of the `cccbr-propiedades` CPT, each item carrying its own status.
+- **Scope:** every `cccbr-propiedades` property that is **not in the trash** — 2672 today — each item carrying its own status. Trashed properties are excluded by CCCBR's decision, and `?status=trash` is a `400`.
 
 **Building the import?** Start with [`docs/consumer-guide.md`](docs/consumer-guide.md) — how to
-authenticate, how to walk all 3055 properties without omissions or duplicates, how to retry, and a
+authenticate, how to walk all 2672 properties without omissions or duplicates, how to retry, and a
 measured list of what the source data does not contain. The exhaustive contract is
 [`docs/contract.md`](docs/contract.md), and [`docs/REPORT.md`](docs/REPORT.md) summarises what was
 built and how it was verified.
@@ -71,4 +71,4 @@ Working conventions, the local replica setup and the hard limits are documented 
 Only user ID, display name and email are exposed for people. Passwords, hashes, tokens, keys,
 logins, sessions, phone numbers and national IDs are never exposed. Private property documents
 (`foto-del-contrato`, `documentos-anexos`) are reduced to a boolean, and lead data to a count.
-Every example in this repository is **synthetic**.
+Trashed properties are not exported at all. Every example in this repository is **synthetic**.

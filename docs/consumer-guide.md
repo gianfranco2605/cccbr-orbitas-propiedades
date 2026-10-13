@@ -13,12 +13,16 @@ record appears in this repository.
 
 ## 1. In one paragraph
 
-One authenticated, read-only endpoint returns **every** CCCBR property — published, draft and
-trashed alike — with its custom fields, location, coordinates, images, the data of the associate who
-created it, and a per-property list of data-quality issues. It is paginated with a cursor on the
-WordPress post id, so walking it from start to finish is safe even while people keep editing
-properties. At the time of writing the source holds **3055 properties**; a full walk is 31 requests
-and takes about 25 seconds.
+One authenticated, read-only endpoint returns every CCCBR property that is **not in the trash** —
+published and draft alike — with its custom fields, location, coordinates, images, the data of the
+associate who created it, and a per-property list of data-quality issues. It is paginated with a
+cursor on the WordPress post id, so walking it from start to finish is safe even while people keep
+editing properties. At the time of writing that is **2672 properties** (2612 published + 60 draft);
+a full walk is 27 requests and takes about 20 seconds.
+
+**Trashed properties are deliberately excluded.** CCCBR decided that a property someone deleted must
+not reach the Marketplace. There were 383 of them in the source. You cannot ask for them:
+`?status=trash` is a `400`.
 
 ---
 
@@ -58,7 +62,7 @@ GET /wp-json/cccbr-orbitas/v1/propiedades
 |---|---|---|---|
 | `per_page` | `50` | 1 – **100** | page size. **101 is a 400**, never a silent clamp |
 | `after_id` | `0` | ≥ 0 | cursor: return properties whose id is **greater than** this |
-| `status` | all | `publish`, `draft`, `pending`, `private`, `future`, `trash` | optional filter; accepts `?status=publish,draft` or `?status[]=publish&status[]=draft` |
+| `status` | all exported | `publish`, `draft`, `pending`, `private`, `future` | optional filter; accepts `?status=publish,draft` or `?status[]=publish&status[]=draft`. **`trash` is rejected with a `400`**, as is any list containing it |
 
 `GET` is the only method; `POST` returns `404`. `OPTIONS` on the route returns the full JSON Schema,
 so you can generate types from the live endpoint instead of transcribing this document.
@@ -154,7 +158,6 @@ Synthetic, but every field is present exactly as the endpoint shapes it.
   "slug": "casa-en-condominio-con-vista-al-valle",
   "url": "https://camara.cr/propiedad/casa-en-condominio-con-vista-al-valle/",
   "status": "publish",
-  "trash": null,
   "created_at_gmt": "2026-02-14T15:04:22Z",
   "modified_at_gmt": "2026-08-01T09:12:51Z",
   "content": "<p>Casa de dos plantas en condominio con seguridad 24/7...</p>",
@@ -242,10 +245,9 @@ Synthetic, but every field is present exactly as the endpoint shapes it.
 
 - **No field is ever omitted.** A missing value is `null`, `[]` or `false`, so you can map
   positionally without existence checks.
-- **`trash` is `null` for anything not in the trash** — which is 2672 of the 3055 properties. When
-  `status` is `trash` it holds `{ historical_slug, status_before_trash, trashed_at_gmt }`. Decide
-  early whether you import trashed properties at all; if you do, `status_before_trash` tells you
-  what they were before someone deleted them.
+- **There is no trash field and no trashed property.** `status` is `publish` or `draft` today. If a
+  property you imported earlier stops appearing in a later walk, it was deleted or trashed — treat
+  both the same way, and see §5 on reconciling a shrinking total.
 - **Classification fields are always arrays** of `{ key, label }` — including `property_type`, which
   holds zero or one entry. Import the `key`; show the `label`. A `label` of `null` means the stored
   token matched no known option and is reported in `issues`; the raw token is still in `key`.
@@ -283,9 +285,9 @@ across the ten numeric fields of all 3055 properties:
 
 | | Count | Example | What the endpoint does |
 |---|---|---|---|
-| Unambiguously numeric | 13 106 of 13 392 non-empty feature values | `185000`, `2.5` | the field is the number |
-| **Ambiguous separators** | **329** | `150.000`, `150,000`, `1.250,75` | `null` + `number_ambiguous`, `detail` = the original string. `150.000` is either one hundred fifty thousand or a number with three decimals, and 333 properties genuinely use decimals for half-bathrooms, so guessing would corrupt prices |
-| **Not a number at all** | **107** | `180 m2`, `$120k`, `2 a 3`, `consultar` | `null` + `number_unparsable`, `detail` = the original string |
+| Unambiguously numeric | the large majority of non-empty feature values | `185000`, `2.5` | the field is the number |
+| **Ambiguous separators** | **309** | `150.000`, `150,000`, `1.250,75` | `null` + `number_ambiguous`, `detail` = the original string. `150.000` is either one hundred fifty thousand or a number with three decimals, and 333 properties genuinely use decimals for half-bathrooms, so guessing would corrupt prices |
+| **Not a number at all** | **78** | `180 m2`, `$120k`, `2 a 3`, `consultar` | `null` + `number_unparsable`, `detail` = the original string |
 
 So: use the field when it is not `null`; when it is, look for the matching issue and queue its
 `detail` for human review. **Do not re-parse `detail` with a permissive parser** — that
@@ -304,23 +306,23 @@ Plan for these. The counts are measured, not estimated, and come from
 
 | Gap | Scale | What you receive | Suggested handling |
 |---|---|---|---|
-| **No Marketplace / Orbitas id anywhere** | all 3055 | `marketplace_id: null` always | Keep your own mapping keyed on the WordPress `id`, which is stable. If you need a round-trip id, CCCBR has to add the field first |
-| **Currency almost never recorded** | only **9** properties have one | `price.currency: null` + `price_currency_missing` | **Never infer** a currency from the amount. Import the price as unknown-currency and ask CCCBR, or agree one default in writing |
-| **No location** | **1063** of 3055 | all three members `null` + `location_missing` | Fall back to `map_raw`, which is free text, or leave the listing unplaced. **1958** properties have all three levels |
-| **Partial location** | **34** properties | the missing member `null` + `location_incomplete` (`detail` lists which) | Import what resolved. Today all 34 are province-only |
+| **No Marketplace / Orbitas id anywhere** | all 2672 | `marketplace_id: null` always | Keep your own mapping keyed on the WordPress `id`, which is stable. If you need a round-trip id, CCCBR has to add the field first |
+| **Currency almost never recorded** | only **9** in the source, 9 exported | `price.currency: null` + `price_currency_missing` | **Never infer** a currency from the amount. Import the price as unknown-currency and ask CCCBR, or agree one default in writing |
+| **No location** | **1019** of 2672 | all three members `null` + `location_missing` | Fall back to `map_raw`, which is free text, or leave the listing unplaced. **1626** properties have all three levels |
+| **Partial location** | **27** properties | the missing member `null` + `location_incomplete` (`detail` lists which) | Import what resolved. Today all 34 are province-only |
 | **Conflicting location** | **0** today | the contested member `null` + `location_ambiguous` | It can appear if someone assigns two cantones or a mismatched distrito. A conflict is a cleanup item for CCCBR, never something to resolve on import |
-| **No coordinates** | 2556 have none; a further **108** failed geocoding | `coordinates: null` (+ `coordinates_geocode_error` for the 108) | Geocode on your side from `location` + `map_raw` if you need a pin |
+| **No coordinates** | most have none; a further **105** failed geocoding | `coordinates: null` (+ `coordinates_geocode_error` for the 108) | Geocode on your side from `location` + `map_raw` if you need a pin |
 | **Stale coordinates** | 2 | coordinates **plus** `coordinates_stale` | The address changed after geocoding; re-geocode if precision matters |
-| **Broken image references** | **301** attachment ids that no longer exist, over **334** references on **118** properties | the id is omitted from `gallery` and reported as `media_attachment_missing` | Import the images that resolve; the report tells CCCBR what to re-upload |
-| **No featured image** | **61** | `media.featured: null` + `media_featured_missing` | Use the first gallery image, or a placeholder |
-| **No gallery** | **87** | `gallery: []` + `media_gallery_empty` | — |
+| **Broken image references** | attachment ids that no longer exist, over **326** references | the id is omitted from `gallery` and reported as `media_attachment_missing` | Import the images that resolve; the report tells CCCBR what to re-upload |
+| **No featured image** | **49** | `media.featured: null` + `media_featured_missing` | Use the first gallery image, or a placeholder |
+| **No gallery** | **75** | `gallery: []` + `media_gallery_empty` | — |
 | **Images without dimensions** | 12, all HEIC | `width`/`height` `null` | WordPress stores no metadata for HEIC. Fetch the original and size it yourself |
-| **Unknown origin** | **543** | `origin.source: "unknown"` + `origin_unknown` | Audit only; nothing to import |
-| **No associate number** | **25** properties, from 2 associates | `associate_id: null` + `associate_id_missing` | Map by `creator.id` |
-| **No responsible associate** | all 3055 | `responsible: null` | The field exists in CCCBR's form but has never been filled. Treat the `creator` as responsible |
-| **No company** | 2607 | `company: null` | Only one associate currently belongs to a company relation |
-| **Amenities never filled** | all 3055 | `amenities: []` | The field exists but is wired to no option list in CCCBR's configuration |
-| **Unmapped option tokens** | 60 occurrences, 2 distinct values | `{ key: "<raw token>", label: null }` + `option_value_unmapped` | The two are `lote_residencial_/_comercial` (59) and `uso mixto` (1) — decide with CCCBR what they map to |
+| **Unknown origin** | **478** | `origin.source: "unknown"` + `origin_unknown` | Audit only; nothing to import |
+| **No associate number** | **8** properties | `associate_id: null` + `associate_id_missing` | Map by `creator.id` |
+| **No responsible associate** | all 2672 | `responsible: null` | The field exists in CCCBR's form but has never been filled. Treat the `creator` as responsible |
+| **No company** | 2267 | `company: null` | Only one associate currently belongs to a company relation |
+| **Amenities never filled** | all 2672 | `amenities: []` | The field exists but is wired to no option list in CCCBR's configuration |
+| **Unmapped option tokens** | 53 occurrences, 2 distinct values | `{ key: "<raw token>", label: null }` + `option_value_unmapped` | The two are `lote_residencial_/_comercial` (59) and `uso mixto` (1) — decide with CCCBR what they map to |
 
 ### Issue codes you will actually see
 
@@ -328,19 +330,19 @@ Measured over a full walk of all 3055 properties:
 
 | Code | Occurrences |
 |---|---|
-| `price_currency_missing` | 2840 |
-| `location_missing` | 1063 |
-| `origin_unknown` | 543 |
-| `media_attachment_missing` | 334 |
-| `number_ambiguous` | 329 |
-| `coordinates_geocode_error` | 108 |
-| `number_unparsable` | 105 |
-| `media_gallery_empty` | 87 |
-| `number_missing` | 70 |
-| `media_featured_missing` | 61 |
-| `option_value_unmapped` | 60 |
-| `location_incomplete` | 34 |
-| `associate_id_missing` | 25 |
+| `price_currency_missing` | 2503 |
+| `location_missing` | 1019 |
+| `origin_unknown` | 478 |
+| `media_attachment_missing` | 326 |
+| `number_ambiguous` | 309 |
+| `coordinates_geocode_error` | 105 |
+| `number_unparsable` | 78 |
+| `media_gallery_empty` | 75 |
+| `number_missing` | 56 |
+| `option_value_unmapped` | 53 |
+| `media_featured_missing` | 49 |
+| `location_incomplete` | 27 |
+| `associate_id_missing` | 8 |
 | `coordinates_stale` | 2 |
 | `location_ambiguous` | **0** — no property in the current data has two terms on one level or a contradicted ancestry |
 
@@ -375,7 +377,7 @@ that matches nothing at all appears, as `option_value_unmapped`.
 2. `curl` one page of 1 and confirm you get `200` and the envelope. A `401` means the credential,
    a `403` means the capability.
 3. `OPTIONS` the route and generate your types from the schema.
-4. Walk with `per_page=100`, storing each page verbatim before transforming it. 31 pages today.
+4. Walk with `per_page=100`, storing each page verbatim before transforming it. **27 pages** today.
 5. Record `pagination.max_id` and `generated_at` from the first page.
 6. Reconcile: your row count must equal the first page's `totals.total` (plus anything added during
    the walk), and your distinct ids must equal that count.

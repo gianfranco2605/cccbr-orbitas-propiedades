@@ -1366,3 +1366,116 @@ fields, 22/22, 90 tests, the two new architecture bullets), `docs/reconciliation
 | `GET ?per_page=2` / no credentials / `?per_page=101` / without the capability | **200 / 401 / 400 / 403** |
 | `OPTIONS` | schema publishes **36** item fields, pagination members `per_page,after_id,next_after_id,has_more,max_id,skipped_ids`, and **no** `sizes` anywhere |
 | `logs wordpress`, whole log | **0** entries from this plugin |
+
+---
+
+# Change request 2 — 2026-10-13 — exclude trashed properties
+
+CCCBR decided trashed properties must not be sent to Orbitas. This **overrides two rows of the
+decisions table**, so `CLAUDE.md` now marks both as superseded rather than leaving the durable rules
+contradicting the code.
+
+## How it was implemented
+
+Four of the requested behaviours come from **one constant**. `Rest\QueryArgs::ALLOWED_STATUSES`
+already drove the default status set, the `status` filter's validation, the keyset query and
+`find_posts()`, so removing `'trash'` from it simultaneously:
+
+1. dropped trashed properties from the default page (CR2.1),
+2. made `?status=trash` a 400 (CR2.2),
+3. excluded them from `totals`, because `aggregate()` uses the same set (CR2.4),
+4. stopped `find_posts()` from loading one even by id.
+
+The docblock on the constant now spells that out, and `tests/unit/QueryArgsTest.php` guards it with
+**5 tests** — a careless edit there changes four behaviours at once.
+
+### Files changed
+- `src/Rest/QueryArgs.php` — `trash` removed from `ALLOWED_STATUSES`, with the reasoning.
+- `src/Mapper/PropertyMapper.php` — the `trash` field, `map_trash()` and the `nullable_string()`
+  helper (which existed only for the two trash meta keys) are deleted. The class docblock records
+  that the three trash meta keys are not read anywhere.
+- `src/Rest/PropertySchema.php` — the `trash` member removed; the `slug` and `url` descriptions no
+  longer mention trashed properties.
+- `tests/unit/QueryArgsTest.php` (new) — the exported set exactly, `trash` absent, `auto-draft` and
+  `inherit` absent, the set well-formed, and the page-size bounds. Only the constant is covered:
+  the validation methods build `WP_Error` and call `__()`, so they need WordPress and are covered
+  over HTTP instead.
+- `tools/reconcile.php` — **every** database comparison query now applies the same status filter,
+  through a new `cccbr_orbitas_prepare_with_statuses()` helper, and the report states the population
+  it measured. Without this the database side reports 3055 against the endpoint's 2672 and looks
+  like a defect.
+- `postman/…collection.json` — expected field list **35**; the trash-shape assertion replaced by one
+  proving no trashed property and no `trash` key is ever returned; two new requests asserting
+  `?status=trash` and `?status=publish,trash` are both 400. Now **23 requests / 72 assertions**.
+- Docs: `docs/contract.md` (version banner, §2, §3, §4.1, §5.2–5.4, §7, §8, §9),
+  `docs/schema.md` (§1.1, §1.2, §3.1 → §3.2, §11), `docs/consumer-guide.md`, `README.md`,
+  `CHANGELOG.md` (0.3.0), `docs/REPORT.md`, `CLAUDE.md` (both decisions rows), `docs/plan.md`.
+- Version **0.3.0** in the header and `CCCBR_ORBITAS_VERSION`.
+
+## A judgement call worth naming
+`docs/schema.md` §1.2 keeps the trash measurement (383 properties, the three meta keys, the 10
+without a `__trashed` suffix) even though none of it is exported now. Deleting it would lose the
+explanation for why the export is 2672 and not 3055, and the note about `_wp_desired_post_slug`
+being the only reliable source for a historical slug is exactly what a future session would need if
+CCCBR reverses the decision. It is now labelled "measured, then excluded".
+
+## Verification
+
+### Gates
+| Check | Result |
+|---|---|
+| `composer lint` | no syntax errors |
+| `composer cs` | **0 errors / 0 warnings** |
+| `composer stan` | **No errors** (level 8) |
+| `composer test` | **OK (95 tests, 273 assertions)** — 5 new |
+
+### HTTP
+| Request | Result |
+|---|---|
+| default page | **200**, `totals.total` **2672**, `by_status` `{draft: 60, publish: 2612}` |
+| an item | **35 fields**, no `trash` key |
+| `?status=trash` | **400** `cccbr_orbitas_invalid_status` |
+| `?status=publish,trash` | **400** — one excluded value rejects the whole argument |
+| `?status[]=trash` | **400** — the repeated-parameter form is rejected too |
+| `?status=publish` / `draft` | **200**, totals 2612 / 60 |
+| `?status=pending` / `private` / `future` | **200**, `total: 0` — still accepted, still empty |
+| page past the newest published id | 46 items, **all `publish`**, no trashed id |
+| no credentials / without the capability | **401** / **403** |
+| `OPTIONS` | **200**; schema publishes **35** item fields with no `trash`, and the `status` enum is exactly `publish, draft, pending, private, future` |
+| `logs wordpress`, whole log | **0** entries from this plugin |
+
+### Reconciliation — **21 of 21 checks pass** (one check fewer than 0.2.0: there is no `trash` row)
+| Measure | Endpoint | Database | |
+|---|---|---|---|
+| Properties in total | **2672** | 2672 | ✅ |
+| Ids missing from the walk / phantom / duplicate | 0 / 0 / 0 | — | ✅ |
+| `pagination.skipped_ids` across the walk | 0 | — | ✅ |
+| `publish` | 2612 | 2612 | ✅ |
+| `draft` | 60 | 60 | ✅ |
+| Distinct authors | **248** | 248 | ✅ |
+| Authors whose count differs | 0 | — | ✅ |
+| With a creator | 2672 | 2672 | ✅ |
+| Without an `associate_id` | 8 | 8 | ✅ |
+| With a company | 405 | 405 | ✅ |
+| With a location | 1653 | 1653 | ✅ |
+| With coordinates | 389 | 389 | ✅ |
+| With a featured image | 2623 | 2623 | ✅ |
+| With an expiration | 476 | 476 | ✅ |
+| From WP User Frontend | 2194 | 2194 | ✅ |
+| With a contract photo | 129 | 129 | ✅ |
+| With at least one lead / leads total | 16 / 20 | 16 / 20 | ✅ |
+
+Walk: **27 pages**, 332 queries, 5.9 s inside the endpoint. Gallery images returned: 27 589.
+
+### What the exclusion removed, in numbers
+| | 0.2.0 (all statuses) | 0.3.0 (trash excluded) | Difference |
+|---|---|---|---|
+| properties | 3055 | **2672** | −383 |
+| distinct authors | 250 | **248** | −2 authors owned only trashed properties |
+| with a location | 1992 | 1653 | −339 |
+| with a featured image | 2994 | 2623 | −371 |
+| with leads | 20 (24 leads) | 16 (20 leads) | −4 properties, −4 leads |
+| `price_currency_missing` | 2840 | 2503 | −337 |
+| `location_missing` | 1063 | 1019 | −44 |
+| `media_attachment_missing` | 334 | 326 | −8 |
+| `associate_id_missing` | 25 | **8** | −17: most properties without an associate number were trashed |

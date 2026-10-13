@@ -1,10 +1,15 @@
 # Response contract — `GET /wp-json/cccbr-orbitas/v1/propiedades`
 
-Version **0.2.0**. Derived from the measured source schema in [`docs/schema.md`](schema.md) — every
+Version **0.3.0**. Derived from the measured source schema in [`docs/schema.md`](schema.md) — every
 field below names the real source key it comes from. Where the contract sketch in `LOOP_PROMPT.md`
 §6 had to change, the reason is given in [§9](#9-changes-against-the-contract-sketch).
 
-> **0.2.0 is breaking for anyone who integrated against 0.1.0.** Orbitas had not validated the
+> **0.3.0 excludes trashed properties entirely.** CCCBR decided that deleted properties must not
+> reach Orbitas. `trash` is no longer a default status, `?status=trash` is a **400**, `totals` does
+> not count trashed properties, and the `trash` object is gone from the item. The export is
+> **2672** properties, not 3055.
+>
+> **0.2.0 was breaking for anyone who integrated against 0.1.0.** Orbitas had not validated the
 > contract yet, so the payload was trimmed to what they are known to need. In short: image
 > derivatives are gone; numbers are plain values instead of `{ raw, value }`; the three trash fields
 > became one `trash` object; `location` became
@@ -47,16 +52,23 @@ accepts them with or without). Credentials are **never** accepted as query param
 |---|---|---|---|---|
 | `per_page` | integer | `50` | `1` … **`100`**; anything else → **400** | page size. No `-1`, no "all" |
 | `after_id` | integer | `0` | `>= 0`; non-integer → **400** | keyset cursor: return properties with `ID > after_id` |
-| `status` | string or array of strings | *(all)* | each value one of `publish`, `draft`, `pending`, `private`, `future`, `trash`; anything else → **400** | optional status filter. Accepts a comma-separated list (`?status=publish,draft`) or repeated params (`?status[]=publish&status[]=draft`) |
+| `status` | string or array of strings | *(all exported)* | each value one of `publish`, `draft`, `pending`, `private`, `future`; anything else — **`trash` included** — → **400** | optional status filter. Accepts a comma-separated list (`?status=publish,draft`) or repeated params (`?status[]=publish&status[]=draft`) |
 
 Unknown query parameters are ignored (standard WordPress REST behaviour). `_fields` and
 `_envelope` work as they do for any WordPress REST route.
 
-**Statuses present in the source today** are only `publish` (2612), `trash` (383) and `draft` (60).
-The other three are accepted so the contract does not change if they ever appear.
-`auto-draft` and `inherit` are **never** returned and are **rejected** as filter values:
-`auto-draft` is an unsaved editor placeholder with no property data, and `inherit` belongs to
-revisions and attachments, not properties.
+**Trashed properties are not exported at all.** CCCBR decided that a deleted property must not
+reach Orbitas, so `trash` is absent from the default set, rejected as a filter value, excluded from
+`totals`, and never loaded. The source holds 383 trashed properties; the export is the remaining
+**2672**.
+
+**Statuses present in the exported population today** are `publish` (2612) and `draft` (60).
+`pending`, `private` and `future` are accepted so the contract does not change if they ever appear;
+each currently returns an empty page with `total: 0`.
+
+`auto-draft`, `inherit` and `trash` are **never** returned and are **rejected** as filter values:
+`auto-draft` is an unsaved editor placeholder with no property data, `inherit` belongs to revisions
+and attachments, and `trash` is excluded by the client's decision.
 
 ---
 
@@ -73,10 +85,9 @@ revisions and attachments, not properties.
     "max_id": 184589
   },
   "totals": {
-    "total": 3055,
+    "total": 2672,
     "by_status": {
       "publish": 2612,
-      "trash": 383,
       "draft": 60
     }
   },
@@ -93,7 +104,7 @@ revisions and attachments, not properties.
 | `pagination.has_more` | boolean | `true` when at least one more property exists after `next_after_id` under the same filter |
 | `pagination.max_id` | integer\|null | largest property `id` in the source at request time, under the same filter. Added for snapshot consistency (§5); `null` when the filter matches nothing |
 | `pagination.skipped_ids` | array of integers | ids this page selected but could not load, because the property was **deleted between the two queries** the endpoint runs. Normally `[]`. See §5.4 |
-| `totals.total` | integer | number of properties matching the filter **at request time** |
+| `totals.total` | integer | number of **exported** properties matching the filter at request time. Trashed properties are never counted |
 | `totals.by_status` | object | count per status matching the filter at request time. Statuses with zero matches are omitted |
 | `generated_at` | string | UTC, ISO 8601 (`YYYY-MM-DDTHH:MM:SSZ`), the moment the response was built |
 
@@ -116,10 +127,9 @@ Nothing is inferred. When a value is missing, ambiguous or broken, the item says
 |---|---|---|---|
 | `id` | integer | `wp_posts.ID` | stable WordPress id, the cursor key |
 | `title` | string | `post_title` | raw, unfiltered |
-| `slug` | string | `post_name` | for trashed properties this still carries the `__trashed` suffix (373 of 383) |
-| `url` | string\|null | `get_permalink()` | `null` when WordPress cannot build one (e.g. trashed). Historical URL for audit, not a guarantee the page resolves |
-| `status` | string | `post_status` | `publish`, `draft` or `trash` in the current data |
-| `trash` | object\|null | the WordPress trash meta | `null` unless `status` is `trash`. Otherwise `{ "historical_slug", "status_before_trash", "trashed_at_gmt" }`, each a string or `null`. Grouped into one nullable object in 0.2.0: as three top-level fields they were `null` on **2672 of 3055** properties. `historical_slug` comes from `_wp_desired_post_slug`, not from stripping the `__trashed` suffix, because 10 of the 383 trashed properties have no suffix |
+| `slug` | string | `post_name` | the published slug |
+| `url` | string\|null | `get_permalink()` | `null` when WordPress cannot build one |
+| `status` | string | `post_status` | `publish` or `draft` in the current data; never `trash` |
 | `created_at_gmt` | string\|null | `post_date_gmt` | UTC ISO 8601. `null` for a zero date (`0000-00-00 00:00:00`) — absence is `null` here as everywhere else in the contract. No zero dates exist in the source today |
 | `modified_at_gmt` | string\|null | `post_modified_gmt` | UTC ISO 8601, `null` for a zero date. Use it to detect records that changed during a walk (§5) |
 | `content` | string | `post_content` | **raw stored content**. `the_content` filters are never applied, so no shortcode is expanded and no Elementor markup is injected |
@@ -393,7 +403,7 @@ loop:
 | Event during the walk | Effect | How the consumer sees it |
 |---|---|---|
 | Property **added** | gets a new, higher `ID` → appears at the end of the walk | included as an extra item; never duplicated. Compare against `pagination.max_id` from the first page to exclude it from the snapshot |
-| Property **deleted** (or trashed to a filtered-out status) | its `ID` is simply absent | the item never appears; the count will be below `totals.total` from the first page |
+| Property **deleted or trashed** | it leaves the exported population | the item never appears, or appears in an earlier page and not in a re-walk; the count will be below `totals.total` from the first page. Trashing is now equivalent to deleting, as far as this endpoint is concerned |
 | Property **edited** | the next page containing it carries the new values | `modified_at_gmt` is later than the walk's start; re-fetchable |
 | Property edited **after** its page was fetched | the consumer holds the older version | detectable by re-walking and comparing `modified_at_gmt` |
 
@@ -406,20 +416,22 @@ unique ids, not only counts.
 ### 5.3 Why a status change mid-walk cannot lose a property
 
 Serving a page takes two queries: one selects the ids (`ID > after_id`, filtered by status), and one
-loads those posts. Between them, someone can publish, draft or trash a property.
+loads those posts. Between them, someone can publish or draft a property.
 
-The second query therefore loads **by id across every allowed status**, not under the request's
+The second query therefore loads **by id across every exported status**, not under the request's
 status filter. If it re-applied the filter, a property whose status changed in that instant would
 match the first query and not the second — and because the cursor has already advanced past its id,
 it would disappear from the walk entirely and silently. Loading by id alone means a selected
 property is always returned, carrying whatever status it has at that moment. A consumer walking with
 `?status=publish` can therefore occasionally receive an item whose `status` is no longer `publish`:
-that is the property's live state, and it is better than a gap.
+that is the property's live state, and it is better than a gap. A property **trashed** in that
+instant is the one exception — `trash` is not an exported status, so it cannot be loaded and its id
+is reported in `skipped_ids` instead.
 
 ### 5.4 `skipped_ids`
 
-One case remains: a property **deleted** between the two queries cannot be loaded at all. Its id is
-then listed in `pagination.skipped_ids` instead of vanishing. The list is normally empty; when it is
+One case remains: a property **deleted — or trashed —** between the two queries cannot be loaded.
+Its id is then listed in `pagination.skipped_ids` instead of vanishing. The list is normally empty; when it is
 not, the ids are a short audit trail saying "these existed when the page was selected and were gone
 a moment later". Nothing needs to be done about them — they are deleted — but a reconciliation that
 counts rows should add them to its arithmetic rather than reporting a mismatch.
@@ -511,7 +523,7 @@ from the live endpoint instead of transcribing this document.
 **Not guaranteed**
 
 - `totals` is a per-request snapshot, not a transaction across the walk (§5.2).
-- `url` may point at a page that no longer resolves (trashed properties).
+- `url` may point at a page that no longer resolves, if the property changed after the page was built.
 - `video_url` and `map_raw` are raw user input, neither validated nor normalized.
 - Coordinates are **geocoded from a text field**, not surveyed, and 107 of 498 failed geocoding.
 - Media **file** existence is implemented but unverified in the replica environment (Q3).
@@ -524,7 +536,6 @@ from the live endpoint instead of transcribing this document.
 |---|---|
 | `id`, `title`, `slug`, `status`, `created_at_gmt`, `modified_at_gmt`, `content` | `wp_posts` |
 | `url` | `get_permalink()` |
-| `historical_slug`, `status_before_trash`, `trashed_at_gmt` | `_wp_desired_post_slug`, `_wp_trash_meta_status`, `_wp_trash_meta_time` |
 | `description_en` | `descripcion-en-ingles` |
 | `expiration` | `_jet_pep_period`, `_jet_pep_action` |
 | `operation`, `property_type` | `estatus-propiedad` (glossary 15), `tipo-de-propiedad` (glossary 12) |
@@ -564,3 +575,4 @@ Each change is required by a measurement in `docs/schema.md`; none of them touch
 | `associate_id` "from a real source field" | user meta `numero-de-asociado` | the only real source; flagged as Q4 because it is user meta |
 | `marketplace_id` "from a real source field, else `null`" | always `null` | no such field exists anywhere in the source (§4.10) |
 | `issues`: "machine-readable codes" | the fixed 22-code list in §4.11, each `{ code, field, detail }` | needed a concrete, stable enumeration to be consumable |
+| "**All** statuses of the CPT by default … `trash`" and the whole "Trashed properties" row | **trashed properties are not exported at all**: not in the default set, not accepted as a filter, not counted in `totals`, and the `trash` object is gone | CCCBR decided in change request 2 that deleted properties must not reach Orbitas. This overrides those two rows of the decisions table, and the three trash meta keys are no longer read anywhere |

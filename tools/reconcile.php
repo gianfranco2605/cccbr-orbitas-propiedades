@@ -27,6 +27,7 @@ namespace ElPuas\CCCBR\OrbitasPropiedades\Tools;
 use ElPuas\CCCBR\OrbitasPropiedades\Mapper\LocationMapper;
 use ElPuas\CCCBR\OrbitasPropiedades\Mapper\PeopleMapper;
 use ElPuas\CCCBR\OrbitasPropiedades\Repository\PropertyRepository;
+use ElPuas\CCCBR\OrbitasPropiedades\Rest\QueryArgs;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit( 1 );
@@ -225,6 +226,40 @@ function cccbr_orbitas_walk(): array {
 }
 
 /**
+ * Prepares a statement, expanding `{statuses}` into the set of exported statuses.
+ *
+ * Every comparison query has to apply the **same** status filter the endpoint does, or the
+ * reconciliation would measure two different populations. Since CCCBR excluded `trash`, a query
+ * that forgets the filter reports 3055 against the endpoint's 2672 and looks like a defect.
+ *
+ * The only runtime-built fragment is a run of `%s` derived from the **count** of statuses; every
+ * value is bound by `prepare()`.
+ *
+ * @param string $template SQL containing the `{statuses}` marker.
+ * @param array  $values   Values to bind, in placeholder order, before the statuses.
+ * @return string|null
+ *
+ * @phpstan-param list<string> $values
+ */
+function cccbr_orbitas_prepare_with_statuses( string $template, array $values ): ?string {
+	global $wpdb;
+
+	$statuses     = QueryArgs::ALLOWED_STATUSES;
+	$placeholders = implode( ', ', array_fill( 0, count( $statuses ), '%s' ) );
+	$sql          = str_replace( '{statuses}', $placeholders, $template );
+
+	foreach ( $statuses as $status ) {
+		$values[] = $status;
+	}
+
+	// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- See the docblock: the only runtime-built fragment is a run of %s derived from a count.
+	$prepared = $wpdb->prepare( $sql, $values );
+	// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
+
+	return is_string( $prepared ) ? $prepared : null;
+}
+
+/**
  * Reads the same facts straight from the database.
  *
  * @return array<string, mixed>
@@ -236,9 +271,14 @@ function cccbr_orbitas_database_facts(): array {
 
 	$by_status = array();
 
-	// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- A reconciliation tool must read the database directly and uncached; that is its entire purpose.
+	// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- A reconciliation tool must read the database directly and uncached; that is its entire purpose. Every statement below is prepared by cccbr_orbitas_prepare_with_statuses().
 	$rows = $wpdb->get_results(
-		$wpdb->prepare( "SELECT post_status, COUNT(*) AS total FROM {$wpdb->posts} WHERE post_type = %s GROUP BY post_status", $type ),
+		(string) cccbr_orbitas_prepare_with_statuses(
+			"SELECT p.post_status, COUNT(*) AS total FROM {$wpdb->posts} p
+				WHERE p.post_type = %s AND p.post_status IN ( {statuses} )
+				GROUP BY p.post_status",
+			array( $type )
+		),
 		ARRAY_A
 	);
 
@@ -247,13 +287,23 @@ function cccbr_orbitas_database_facts(): array {
 	}
 
 	$ids = $wpdb->get_col(
-		$wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_type = %s ORDER BY ID ASC", $type )
+		(string) cccbr_orbitas_prepare_with_statuses(
+			"SELECT p.ID FROM {$wpdb->posts} p
+				WHERE p.post_type = %s AND p.post_status IN ( {statuses} )
+				ORDER BY p.ID ASC",
+			array( $type )
+		)
 	);
 
 	$by_author = array();
 
 	$rows = $wpdb->get_results(
-		$wpdb->prepare( "SELECT post_author, COUNT(*) AS total FROM {$wpdb->posts} WHERE post_type = %s GROUP BY post_author", $type ),
+		(string) cccbr_orbitas_prepare_with_statuses(
+			"SELECT p.post_author, COUNT(*) AS total FROM {$wpdb->posts} p
+				WHERE p.post_type = %s AND p.post_status IN ( {statuses} )
+				GROUP BY p.post_author",
+			array( $type )
+		),
 		ARRAY_A
 	);
 
@@ -262,87 +312,88 @@ function cccbr_orbitas_database_facts(): array {
 	}
 
 	$single = array(
-		'authors_without_associate'    => $wpdb->prepare(
+		'authors_without_associate'    => cccbr_orbitas_prepare_with_statuses(
 			"SELECT COUNT(DISTINCT p.post_author) FROM {$wpdb->posts} p
 				LEFT JOIN {$wpdb->usermeta} um ON um.user_id = p.post_author AND um.meta_key = %s
-				WHERE p.post_type = %s AND ( um.umeta_id IS NULL OR TRIM(um.meta_value) = '' )",
-			PeopleMapper::ASSOCIATE_META_KEY,
-			$type
+				WHERE p.post_type = %s AND ( um.umeta_id IS NULL OR TRIM(um.meta_value) = '' )
+					AND p.post_status IN ( {statuses} )",
+			array( PeopleMapper::ASSOCIATE_META_KEY, $type )
 		),
-		'properties_without_associate' => $wpdb->prepare(
+		'properties_without_associate' => cccbr_orbitas_prepare_with_statuses(
 			"SELECT COUNT(*) FROM {$wpdb->posts} p
 				LEFT JOIN {$wpdb->usermeta} um ON um.user_id = p.post_author AND um.meta_key = %s
-				WHERE p.post_type = %s AND ( um.umeta_id IS NULL OR TRIM(um.meta_value) = '' )",
-			PeopleMapper::ASSOCIATE_META_KEY,
-			$type
+				WHERE p.post_type = %s AND ( um.umeta_id IS NULL OR TRIM(um.meta_value) = '' )
+					AND p.post_status IN ( {statuses} )",
+			array( PeopleMapper::ASSOCIATE_META_KEY, $type )
 		),
-		'properties_with_location'     => $wpdb->prepare(
+		'properties_with_location'     => cccbr_orbitas_prepare_with_statuses(
 			"SELECT COUNT(DISTINCT tr.object_id) FROM {$wpdb->term_relationships} tr
 				INNER JOIN {$wpdb->term_taxonomy} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id
 				INNER JOIN {$wpdb->posts} p ON p.ID = tr.object_id
-				WHERE tt.taxonomy = %s AND p.post_type = %s",
-			LocationMapper::TAXONOMY,
-			$type
+				WHERE tt.taxonomy = %s AND p.post_type = %s AND p.post_status IN ( {statuses} )",
+			array( LocationMapper::TAXONOMY, $type )
 		),
-		'usable_thumbnails'            => $wpdb->prepare(
+		'usable_thumbnails'            => cccbr_orbitas_prepare_with_statuses(
 			"SELECT COUNT(*) FROM {$wpdb->postmeta} pm
 				INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
 				INNER JOIN {$wpdb->posts} a ON a.ID = CAST(pm.meta_value AS UNSIGNED) AND a.post_type = 'attachment'
-				WHERE p.post_type = %s AND pm.meta_key = '_thumbnail_id' AND pm.meta_value REGEXP '^[0-9]+$'",
-			$type
+				WHERE p.post_type = %s AND pm.meta_key = '_thumbnail_id' AND pm.meta_value REGEXP '^[0-9]+$'
+					AND p.post_status IN ( {statuses} )",
+			array( $type )
 		),
-		'numeric_coordinates'          => $wpdb->prepare(
+		'numeric_coordinates'          => cccbr_orbitas_prepare_with_statuses(
 			"SELECT COUNT(*) FROM {$wpdb->postmeta} pm
 				INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
-				WHERE p.post_type = %s AND pm.meta_key = %s AND pm.meta_value NOT LIKE %s",
-			$type,
-			md5( 'mapa' ) . '_lat',
-			$wpdb->esc_like( 'je-coord-error' ) . '%'
+				WHERE p.post_type = %s AND pm.meta_key = %s AND pm.meta_value NOT LIKE %s
+					AND p.post_status IN ( {statuses} )",
+			array( $type, md5( 'mapa' ) . '_lat', $wpdb->esc_like( 'je-coord-error' ) . '%' )
 		),
-		'error_coordinates'            => $wpdb->prepare(
+		'error_coordinates'            => cccbr_orbitas_prepare_with_statuses(
 			"SELECT COUNT(*) FROM {$wpdb->postmeta} pm
 				INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
-				WHERE p.post_type = %s AND pm.meta_key = %s AND pm.meta_value LIKE %s",
-			$type,
-			md5( 'mapa' ) . '_lat',
-			$wpdb->esc_like( 'je-coord-error' ) . '%'
+				WHERE p.post_type = %s AND pm.meta_key = %s AND pm.meta_value LIKE %s
+					AND p.post_status IN ( {statuses} )",
+			array( $type, md5( 'mapa' ) . '_lat', $wpdb->esc_like( 'je-coord-error' ) . '%' )
 		),
-		'with_expiration'              => $wpdb->prepare(
+		'with_expiration'              => cccbr_orbitas_prepare_with_statuses(
 			"SELECT COUNT(*) FROM {$wpdb->postmeta} pm
 				INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
-				WHERE p.post_type = %s AND pm.meta_key = '_jet_pep_period' AND TRIM(pm.meta_value) <> ''",
-			$type
+				WHERE p.post_type = %s AND pm.meta_key = '_jet_pep_period' AND TRIM(pm.meta_value) <> ''
+					AND p.post_status IN ( {statuses} )",
+			array( $type )
 		),
-		'origin_wpuf'                  => $wpdb->prepare(
+		'origin_wpuf'                  => cccbr_orbitas_prepare_with_statuses(
 			"SELECT COUNT(*) FROM {$wpdb->postmeta} pm
 				INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
-				WHERE p.post_type = %s AND pm.meta_key = '_wpuf_form_id' AND pm.meta_value REGEXP '^[0-9]+$'",
-			$type
+				WHERE p.post_type = %s AND pm.meta_key = '_wpuf_form_id' AND pm.meta_value REGEXP '^[0-9]+$'
+					AND p.post_status IN ( {statuses} )",
+			array( $type )
 		),
-		'contract_photos'              => $wpdb->prepare(
+		'contract_photos'              => cccbr_orbitas_prepare_with_statuses(
 			"SELECT COUNT(*) FROM {$wpdb->postmeta} pm
 				INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
 				WHERE p.post_type = %s AND pm.meta_key = 'foto-del-contrato'
-					AND pm.meta_value IS NOT NULL AND TRIM(pm.meta_value) <> ''",
-			$type
+					AND pm.meta_value IS NOT NULL AND TRIM(pm.meta_value) <> ''
+					AND p.post_status IN ( {statuses} )",
+			array( $type )
 		),
-		'leads_properties'             => $wpdb->prepare(
+		'leads_properties'             => cccbr_orbitas_prepare_with_statuses(
 			"SELECT COUNT(DISTINCT r.parent_object_id) FROM {$wpdb->prefix}jet_rel_171 r
 				INNER JOIN {$wpdb->posts} p ON p.ID = r.parent_object_id AND p.post_type = %s
-				WHERE r.rel_id = '171'",
-			$type
+				WHERE r.rel_id = '171' AND p.post_status IN ( {statuses} )",
+			array( $type )
 		),
-		'leads_total'                  => $wpdb->prepare(
+		'leads_total'                  => cccbr_orbitas_prepare_with_statuses(
 			"SELECT COUNT(*) FROM {$wpdb->prefix}jet_rel_171 r
 				INNER JOIN {$wpdb->posts} p ON p.ID = r.parent_object_id AND p.post_type = %s
-				WHERE r.rel_id = '171'",
-			$type
+				WHERE r.rel_id = '171' AND p.post_status IN ( {statuses} )",
+			array( $type )
 		),
-		'properties_with_company'      => $wpdb->prepare(
+		'properties_with_company'      => cccbr_orbitas_prepare_with_statuses(
 			"SELECT COUNT(*) FROM {$wpdb->posts} p
 				INNER JOIN {$wpdb->prefix}jet_rel_131 r ON r.child_object_id = p.post_author AND r.rel_id = '131'
-				WHERE p.post_type = %s",
-			$type
+				WHERE p.post_type = %s AND p.post_status IN ( {statuses} )",
+			array( $type )
 		),
 	);
 
@@ -429,6 +480,12 @@ function cccbr_orbitas_reconcile(): void {
 	echo "The tool walks the whole collection through `rest_do_request()` as an administrator, then\n";
 	echo "reads the same facts straight from the database and compares them. It writes nothing, and\n";
 	echo "reports only counts, identifiers and booleans — never a personal value.\n\n";
+	printf(
+		"**Population:** properties whose status is one of %s. **Trashed properties are excluded**\n",
+		'`' . implode( '`, `', QueryArgs::ALLOWED_STATUSES ) . '`'
+	);
+	echo "from the export by CCCBR's decision, so every query below applies the same filter — a\n";
+	echo "comparison against the unfiltered table would measure two different populations.\n\n";
 
 	printf( "## 1. The walk\n\n" );
 	printf( "| Measure | Value |\n|---|---|\n" );

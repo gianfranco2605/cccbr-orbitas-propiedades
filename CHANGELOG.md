@@ -5,6 +5,44 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-10-13
+
+Change request 2. **CCCBR decided that trashed properties must not be sent to Orbitas.** This
+overrides the "Statuses" and "Trashed properties" rows of the project's decisions table, both of
+which are now marked as superseded in `CLAUDE.md`.
+
+### Removed — **breaking for anyone integrated against 0.2.0**
+
+- **Trashed properties are no longer exported.** `trash` is gone from the default status set, so a
+  plain request returns **2672** properties instead of 3055.
+- **`?status=trash` is rejected** with `400` / `cccbr_orbitas_invalid_status`, like any other value
+  outside the allowed set — and so is any list containing it, such as `?status=publish,trash`.
+- **`totals` no longer counts trashed properties.** `totals.total` is 2672 and `by_status` holds
+  only `publish` 2612 and `draft` 60.
+- **The `trash` object is removed from the item**, with it the historical slug, the status before
+  trashing and the trash date. A property object now has **35 fields** (was 36).
+- The code that read `_wp_desired_post_slug`, `_wp_trash_meta_status` and `_wp_trash_meta_time` is
+  deleted, along with `PropertyMapper::map_trash()` and the `nullable_string()` helper that existed
+  only for those keys. The three keys are listed as **excluded** in `docs/schema.md` §3.2.
+
+All four behaviours come from one constant, `Rest\QueryArgs::ALLOWED_STATUSES`, which is now guarded
+by `tests/unit/QueryArgsTest.php`.
+
+### Changed
+
+- `tools/reconcile.php` applies the exported status filter to **every** database comparison query,
+  through a new `cccbr_orbitas_prepare_with_statuses()` helper. Without it the database side would
+  report 3055 against the endpoint's 2672 and look like a defect.
+- The reconciliation report states the population it measured.
+
+### Verified
+
+Reconciliation re-run: **21 of 21 checks pass** over 27 pages — 2672 properties, no omissions, no
+duplicates, no phantom ids, `skipped_ids` empty, and every field-level count matching the database
+for the exported population: 248 distinct authors, 1653 with a location, 2623 with a featured image,
+476 with an expiration, 2194 from WP User Frontend, 129 with a contract photo, 16 with leads
+(20 leads), 405 with a company and 8 without an associate number.
+
 ## [0.2.0] — 2026-10-13
 
 Change request 1, after Gianfranco reviewed a real response and the code. Orbitas has not validated
@@ -115,5 +153,6 @@ deployment to production is outside this scope.
 - WPCS 3 via PHPCS with PHPCompatibilityWP at `testVersion 8.1-`; PHPStan level 8 with WordPress
   stubs; PHPUnit for WordPress-free unit tests. `composer lint`, `cs`, `cbf`, `stan`, `test`.
 
+[0.3.0]: https://github.com/gianfranco2605/cccbr-orbitas-propiedades/releases/tag/v0.3.0
 [0.2.0]: https://github.com/gianfranco2605/cccbr-orbitas-propiedades/releases/tag/v0.2.0
 [0.1.0]: https://github.com/gianfranco2605/cccbr-orbitas-propiedades/releases/tag/v0.1.0
