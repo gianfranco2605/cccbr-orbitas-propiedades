@@ -88,7 +88,7 @@ payload starts lean and grows only on request. Changes 1–5 are **breaking** fo
   property whose status changes between the two queries is still returned with its current status
   instead of silently vanishing while the cursor moves past it. An ID that cannot be loaded at all
   (deleted in between) is reported in `pagination.skipped_ids`, covered by a test and documented.
-- [ ] **CR1.8 — Composition root.** Build the object graph lazily inside the `rest_api_init`
+- [x] **CR1.8 — Composition root.** Build the object graph lazily inside the `rest_api_init`
   callback rather than on every WordPress request. The main plugin file keeps only the header, the
   `ABSPATH` guard, constants, the autoloader, the activation hook and one bootstrap call.
 

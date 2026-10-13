@@ -24,21 +24,10 @@ declare(strict_types=1);
 
 namespace ElPuas\CCCBR\OrbitasPropiedades\Tools;
 
-use ElPuas\CCCBR\OrbitasPropiedades\Auth\Permissions;
-use ElPuas\CCCBR\OrbitasPropiedades\Mapper\CoordinatesMapper;
+use ElPuas\CCCBR\OrbitasPropiedades\Factory;
 use ElPuas\CCCBR\OrbitasPropiedades\Mapper\LocationMapper;
-use ElPuas\CCCBR\OrbitasPropiedades\Mapper\MediaMapper;
-use ElPuas\CCCBR\OrbitasPropiedades\Mapper\PeopleMapper;
-use ElPuas\CCCBR\OrbitasPropiedades\Mapper\PropertyMapper;
 use ElPuas\CCCBR\OrbitasPropiedades\Repository\PropertyRepository;
-use ElPuas\CCCBR\OrbitasPropiedades\Repository\RelationsRepository;
 use ElPuas\CCCBR\OrbitasPropiedades\Rest\PropertiesController;
-use ElPuas\CCCBR\OrbitasPropiedades\Rest\PropertySchema;
-use ElPuas\CCCBR\OrbitasPropiedades\Schema\FieldMap;
-use ElPuas\CCCBR\OrbitasPropiedades\Support\IdListParser;
-use ElPuas\CCCBR\OrbitasPropiedades\Support\LocationResolver;
-use ElPuas\CCCBR\OrbitasPropiedades\Support\NumberParser;
-use ElPuas\CCCBR\OrbitasPropiedades\Support\OptionNormalizer;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit( 1 );
@@ -51,48 +40,39 @@ if ( ! function_exists( __NAMESPACE__ . '\\cccbr_orbitas_tools_prepare' ) ) {
 	 * @return PropertiesController
 	 */
 	function cccbr_orbitas_tools_prepare(): PropertiesController {
-		global $wpdb;
-
 		require_once dirname( __DIR__ ) . '/vendor/autoload.php';
 
 		cccbr_orbitas_tools_register_objects();
 
-		$id_parser = new IdListParser();
-
 		/*
-		 * The file-existence check is switched **off** for the CLI tools, deliberately and
-		 * regardless of the environment type.
+		 * The same composition root the plugin uses, so these tools exercise exactly the graph an
+		 * HTTP request does and the wiring cannot drift into a second copy.
 		 *
-		 * Measured on this replica: an HTTP request reports `wp_get_environment_type() === 'local'`,
-		 * while the same call inside the `wpcli` container reports `'production'` — the two
-		 * containers do not share that piece of configuration. Trusting it here made the
-		 * reconciliation emit 33 219 `media_file_missing` issues for files that the web request
-		 * correctly says nothing about: a false claim produced by a tooling quirk.
-		 *
-		 * These tools exist to reconcile counts, and they can verify a file no better than the web
-		 * path can. Broken attachment *references* are still fully checked, because that needs only
-		 * `wp_posts`.
+		 * One deliberate difference: the media file-existence check is forced **off** below,
+		 * regardless of what `Factory` decides. Measured on this replica, an HTTP request reports
+		 * `wp_get_environment_type() === 'local'` while the same call inside the `wpcli` container
+		 * reports `'production'` — the two containers do not share that setting. Trusting it here
+		 * made the reconciliation emit 33 219 `media_file_missing` issues for files the web request
+		 * correctly says nothing about. These tools reconcile counts and can verify a file no better
+		 * than the web path can; broken attachment *references* are still fully checked, because
+		 * that needs only `wp_posts`.
 		 */
-		$check_files = false;
+		add_filter( 'wp_get_environment_type', __NAMESPACE__ . '\\cccbr_orbitas_tools_force_local_environment' );
 
-		$controller = new PropertiesController(
-			new Permissions(),
-			new PropertySchema(),
-			new PropertyRepository( $wpdb ),
-			new PropertyMapper(
-				new FieldMap( $wpdb ),
-				new OptionNormalizer(),
-				new NumberParser(),
-				new LocationMapper( new LocationResolver() ),
-				new CoordinatesMapper(),
-				new MediaMapper( $id_parser, $check_files ),
-				new PeopleMapper( new RelationsRepository( $wpdb ), $id_parser )
-			)
-		);
+		$controller = ( new Factory() )->controller();
 
 		add_action( 'rest_api_init', array( $controller, 'register_routes' ) );
 
 		return $controller;
+	}
+
+	/**
+	 * Forces the environment type seen by the tools, so the media file check stays off.
+	 *
+	 * @return string
+	 */
+	function cccbr_orbitas_tools_force_local_environment(): string {
+		return 'local';
 	}
 
 	/**

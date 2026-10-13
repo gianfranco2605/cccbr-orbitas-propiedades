@@ -1255,3 +1255,45 @@ A property *deleted* between the two queries still cannot be loaded — that id 
 
 The race cannot be reproduced on demand on a quiet replica, which is why it is covered by unit tests
 on the pure helper and by a standing check in the reconciliation rather than by a one-off experiment.
+
+## CR1.8 — Composition root built lazily
+
+### Files changed
+- `src/Factory.php` (**new**) — the composition root: the one place that knows how the services fit
+  together, and the only one that reads the global `$wpdb`. It also decides the media file-check
+  flag, so that decision is visible in one place rather than inline in the plugin file.
+- `src/Plugin.php` — holds a `Factory` instead of a built controller, and gained
+  `register_routes()`, the `rest_api_init` callback that builds the graph and registers the route.
+- `cccbr-orbitas-propiedades.php` — now **only** header, `ABSPATH` guard, constants, autoloader with
+  its admin-notice fallback, the activation hook and one bootstrap call. The `global $wpdb` read and
+  the fourteen `new` expressions are gone from it.
+- `tools/bootstrap.php` — calls the **same** `Factory`, so the CLI tools exercise exactly the graph
+  an HTTP request uses and the wiring cannot drift into a second copy. It keeps one deliberate
+  override: a `wp_get_environment_type` filter forcing `local`, which is how the media file check
+  stays off in the `wpcli` container (CR1.7's note and `CLAUDE.md` §3.3 explain why).
+
+### Why
+The graph was built on **every** WordPress request — page views, admin screens, cron — to serve an
+endpoint that only answers REST calls. Now it is built inside the `rest_api_init` callback, so
+anything that never touches the REST API pays nothing for it.
+
+### A real bug PHPStan caught during this change
+The new filter was first registered as `add_filter( 'wp_get_environment_type',
+'cccbr_orbitas_tools_force_local_environment' )`. The function lives in the
+`…\Tools` namespace, so that string names a **global** function that does not exist — the filter
+would silently never have fired, and the media check would have come back on in the CLI tools.
+PHPStan reported it as "expects callable, 'cccbr_orbitas_tools…' given"; fixed with
+`__NAMESPACE__ . '\\…'`.
+
+### Verification
+| Check | Result |
+|---|---|
+| `composer cs` | 0 errors / 0 warnings |
+| `composer stan` | No errors (level 8) — after fixing the namespaced-callback bug above |
+| `composer test` | OK (89 tests, 255 assertions) |
+| `GET` authorized / no credentials / without the capability | **200 / 401 / 403** |
+| `OPTIONS` | **200** — the schema is still published |
+| `GET /` (home page, no REST involved) | **200** |
+| `GET /wp-json/` | `cccbr-orbitas/v1` still registered |
+| `wp eval-file tools/measure-performance.php` | same figures as before: **4** warm queries, **20** cold, flat as the page grows — and no `media_file_missing`, so the forced-`local` filter works |
+| `logs wordpress --tail 40` | **0** entries from this plugin |

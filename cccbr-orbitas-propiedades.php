@@ -65,40 +65,4 @@ register_activation_hook(
 	}
 );
 
-/*
- * This file is the composition root: it is the one place that reads WordPress's global database
- * handle, and it passes it in by constructor so no class of this plugin ever touches a global.
- */
-global $wpdb;
-
-/*
- * Verifying that an attachment's file exists is only meaningful where the uploads directory is the
- * real one. On a local replica every uploads request is redirected to production, so the check
- * would report every file as missing; reporting nothing is the honest answer there.
- * See docs/OPEN-QUESTIONS.md Q3.
- */
-$cccbr_orbitas_check_media_files = ( 'local' !== wp_get_environment_type() );
-
-$cccbr_orbitas_id_parser = new Support\IdListParser();
-
-$cccbr_orbitas_controller = new Rest\PropertiesController(
-	new Auth\Permissions(),
-	new Rest\PropertySchema(),
-	new Repository\PropertyRepository( $wpdb ),
-	new Mapper\PropertyMapper(
-		new Schema\FieldMap( $wpdb ),
-		new Support\OptionNormalizer(),
-		new Support\NumberParser(),
-		new Mapper\LocationMapper( new Support\LocationResolver() ),
-		new Mapper\CoordinatesMapper(),
-		new Mapper\MediaMapper( $cccbr_orbitas_id_parser, $cccbr_orbitas_check_media_files ),
-		new Mapper\PeopleMapper(
-			new Repository\RelationsRepository( $wpdb ),
-			$cccbr_orbitas_id_parser
-		)
-	)
-);
-
-( new Plugin( __FILE__, $cccbr_orbitas_controller ) )->register();
-
-unset( $cccbr_orbitas_controller, $cccbr_orbitas_check_media_files, $cccbr_orbitas_id_parser );
+( new Plugin( __FILE__, new Factory() ) )->register();

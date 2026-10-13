@@ -9,13 +9,15 @@ declare(strict_types=1);
 
 namespace ElPuas\CCCBR\OrbitasPropiedades;
 
-use ElPuas\CCCBR\OrbitasPropiedades\Rest\PropertiesController;
-
 /**
  * Registers the plugin's hooks.
  *
  * This class only wires services to hooks: it holds no business logic, and every callback
  * delegates straight to a service.
+ *
+ * It holds a {@see Factory} rather than a built controller, so the object graph is created only
+ * when a REST request actually reaches `rest_api_init` — not on every page view, admin screen or
+ * cron run.
  */
 final class Plugin {
 
@@ -27,21 +29,21 @@ final class Plugin {
 	private string $plugin_file;
 
 	/**
-	 * Properties endpoint.
+	 * Builds the object graph on demand.
 	 *
-	 * @var PropertiesController
+	 * @var Factory
 	 */
-	private PropertiesController $controller;
+	private Factory $factory;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param string               $plugin_file Absolute path to the main plugin file.
-	 * @param PropertiesController $controller  Properties endpoint.
+	 * @param string  $plugin_file Absolute path to the main plugin file.
+	 * @param Factory $factory     Builds the object graph on demand.
 	 */
-	public function __construct( string $plugin_file, PropertiesController $controller ) {
+	public function __construct( string $plugin_file, Factory $factory ) {
 		$this->plugin_file = $plugin_file;
-		$this->controller  = $controller;
+		$this->factory     = $factory;
 	}
 
 	/**
@@ -51,7 +53,19 @@ final class Plugin {
 	 */
 	public function register(): void {
 		add_action( 'init', array( $this, 'load_text_domain' ) );
-		add_action( 'rest_api_init', array( $this->controller, 'register_routes' ) );
+		add_action( 'rest_api_init', array( $this, 'register_routes' ) );
+	}
+
+	/**
+	 * Builds the endpoint and registers its route. Hooked to `rest_api_init`.
+	 *
+	 * The graph is constructed here, at the latest possible moment, so a request that never touches
+	 * the REST API pays nothing for it.
+	 *
+	 * @return void
+	 */
+	public function register_routes(): void {
+		$this->factory->controller()->register_routes();
 	}
 
 	/**
