@@ -84,6 +84,7 @@ revisions and attachments, not properties.
 | `pagination.next_after_id` | integer\|null | the `id` of the **last** item in `data`; pass it as the next `after_id`. `null` when `data` is empty |
 | `pagination.has_more` | boolean | `true` when at least one more property exists after `next_after_id` under the same filter |
 | `pagination.max_id` | integer\|null | largest property `id` in the source at request time, under the same filter. Added for snapshot consistency (§5); `null` when the filter matches nothing |
+| `pagination.skipped_ids` | array of integers | ids this page selected but could not load, because the property was **deleted between the two queries** the endpoint runs. Normally `[]`. See §5.4 |
 | `totals.total` | integer | number of properties matching the filter **at request time** |
 | `totals.by_status` | object | count per status matching the filter at request time. Statuses with zero matches are omitted |
 | `generated_at` | string | UTC, ISO 8601 (`YYYY-MM-DDTHH:MM:SSZ`), the moment the response was built |
@@ -394,7 +395,28 @@ started, minus anything deleted in the meantime. `totals` is recomputed per requ
 drift during a long walk — that is by design and is why the reconciliation in Task 11 compares
 unique ids, not only counts.
 
-### 5.3 Empty and final pages
+### 5.3 Why a status change mid-walk cannot lose a property
+
+Serving a page takes two queries: one selects the ids (`ID > after_id`, filtered by status), and one
+loads those posts. Between them, someone can publish, draft or trash a property.
+
+The second query therefore loads **by id across every allowed status**, not under the request's
+status filter. If it re-applied the filter, a property whose status changed in that instant would
+match the first query and not the second — and because the cursor has already advanced past its id,
+it would disappear from the walk entirely and silently. Loading by id alone means a selected
+property is always returned, carrying whatever status it has at that moment. A consumer walking with
+`?status=publish` can therefore occasionally receive an item whose `status` is no longer `publish`:
+that is the property's live state, and it is better than a gap.
+
+### 5.4 `skipped_ids`
+
+One case remains: a property **deleted** between the two queries cannot be loaded at all. Its id is
+then listed in `pagination.skipped_ids` instead of vanishing. The list is normally empty; when it is
+not, the ids are a short audit trail saying "these existed when the page was selected and were gone
+a moment later". Nothing needs to be done about them — they are deleted — but a reconciliation that
+counts rows should add them to its arithmetic rather than reporting a mismatch.
+
+### 5.5 Empty and final pages
 
 - Past the end: `200` with `data: []`, `next_after_id: null`, `has_more: false`.
 - A filter that matches nothing: `200` with `data: []`, `totals.total: 0`, `by_status: {}`.

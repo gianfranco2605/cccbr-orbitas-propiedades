@@ -129,13 +129,15 @@ final class PropertiesController {
 		$cursor    = new Cursor( $args->per_page(), $this->repository->find_page_ids( $args ) );
 		$aggregate = $this->repository->aggregate( $args );
 
-		$posts      = $this->repository->find_posts( $cursor->ids(), $args );
+		$posts      = $this->repository->find_posts( $cursor->ids() );
 		$meta_by_id = array();
+		$loaded     = array();
 
 		foreach ( $posts as $post ) {
 			$meta = get_post_meta( $post->ID );
 
 			$meta_by_id[ $post->ID ] = is_array( $meta ) ? $meta : array();
+			$loaded[]                = $post->ID;
 		}
 
 		// Load everything the whole page references in bulk before mapping anything, so no
@@ -157,6 +159,7 @@ final class PropertiesController {
 					'next_after_id' => $cursor->next_after_id(),
 					'has_more'      => $cursor->has_more(),
 					'max_id'        => $aggregate['max_id'],
+					'skipped_ids'   => $cursor->skipped_ids( $loaded ),
 				),
 				'totals'       => array(
 					'total'     => $aggregate['total'],

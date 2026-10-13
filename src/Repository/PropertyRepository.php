@@ -91,18 +91,25 @@ final class PropertyRepository {
 	/**
 	 * Loads the posts of one page, with the post, meta and term caches primed in bulk.
 	 *
-	 * This is `WP_Query` territory, so it uses `get_posts()` rather than SQL. Two defaults matter:
-	 * `post_status` is the explicit list, because `'any'` silently drops `trash`; and
-	 * `suppress_filters` stays at the `get_posts()` default of true, so no other plugin or theme
-	 * can narrow an export that the ticket requires to be complete.
+	 * This is `WP_Query` territory, so it uses `get_posts()` rather than SQL. Three details matter:
 	 *
-	 * @param array     $ids  Ascending property IDs.
-	 * @param QueryArgs $args Validated request arguments.
+	 * 1. `post_status` is **every allowed status**, not the request's filter. The IDs were already
+	 *    selected by the keyset query under that filter, and re-applying it here would reintroduce a
+	 *    race: a property whose status changes between the two queries would match the first and not
+	 *    the second, so it would vanish from the page **while the cursor moved past it** — lost from
+	 *    the walk entirely, silently. Loading by ID alone means a selected property is always
+	 *    returned, carrying whatever status it has at that moment. The caller reports any ID that
+	 *    cannot be loaded at all in `pagination.skipped_ids`.
+	 * 2. `'any'` is not used, because it silently drops `trash`.
+	 * 3. `suppress_filters` stays at the `get_posts()` default of true, so no other plugin or theme
+	 *    can narrow an export the ticket requires to be complete.
+	 *
+	 * @param array $ids Ascending property IDs.
 	 * @return list<WP_Post> Posts in the same ascending ID order.
 	 *
 	 * @phpstan-param list<int> $ids
 	 */
-	public function find_posts( array $ids, QueryArgs $args ): array {
+	public function find_posts( array $ids ): array {
 		if ( array() === $ids ) {
 			return array();
 		}
@@ -110,7 +117,7 @@ final class PropertyRepository {
 		$posts = get_posts(
 			array(
 				'post_type'              => self::POST_TYPE,
-				'post_status'            => $args->statuses(),
+				'post_status'            => QueryArgs::ALLOWED_STATUSES,
 				'post__in'               => $ids,
 				'orderby'                => 'ID',
 				'order'                  => 'ASC',

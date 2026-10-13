@@ -199,6 +199,13 @@ final class PropertySchema {
 						'next_after_id' => $this->nullable_field( 'integer', 'Pass as the next after_id. Null when the page is empty.' ),
 						'has_more'      => $this->field( 'boolean', 'Whether at least one more property exists after this page.' ),
 						'max_id'        => $this->nullable_field( 'integer', 'Largest matching property id at request time, for snapshot consistency.' ),
+						'skipped_ids'   => array(
+							'description' => 'Ids this page selected but could not load, because the property was deleted between the two queries. Normally empty.',
+							'type'        => 'array',
+							'items'       => array( 'type' => 'integer' ),
+							'context'     => array( 'view' ),
+							'readonly'    => true,
+						),
 					),
 				),
 				'totals'       => array(

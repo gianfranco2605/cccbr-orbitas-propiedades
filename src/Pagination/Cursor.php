@@ -85,4 +85,28 @@ final class Cursor {
 	public function has_more(): bool {
 		return $this->has_more;
 	}
+
+	/**
+	 * IDs of this page that the loader could not return.
+	 *
+	 * The keyset query selects IDs and a second query loads them. A property deleted between the
+	 * two is selected but cannot be loaded, and the cursor has already moved past it — so it must
+	 * be named rather than silently dropped. Reported as `pagination.skipped_ids`.
+	 *
+	 * @param array $loaded IDs that were successfully loaded.
+	 * @return list<int> Page IDs missing from `$loaded`, in page order.
+	 *
+	 * @phpstan-param list<int> $loaded
+	 */
+	public function skipped_ids( array $loaded ): array {
+		$missing = array();
+
+		foreach ( $this->ids as $id ) {
+			if ( ! in_array( $id, $loaded, true ) ) {
+				$missing[] = $id;
+			}
+		}
+
+		return $missing;
+	}
 }

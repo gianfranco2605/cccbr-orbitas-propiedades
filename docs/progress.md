@@ -1207,3 +1207,51 @@ so nothing was failing.
 |---|---|
 | `composer cs` / `stan` / `test` | clean / No errors / OK (84 tests, 250 assertions) |
 | `GET ?per_page=100` | **200**; both date fields are `string` on all 100 properties, and **no** empty-string date appears — the real data has no zero dates, so the change is latent by design |
+
+## CR1.7 — The race between the two queries
+
+### The defect
+Serving a page takes two queries: `find_page_ids()` selects ids under the request's status filter,
+and `find_posts()` loaded them **with the same filter re-applied**. A property whose status changed
+between the two matched the first and not the second, so it was dropped from the page — and because
+the cursor had already advanced past its id, it disappeared from the walk **entirely and silently**.
+A consumer walking `?status=publish` could miss a property for no reason other than someone
+publishing or drafting it at that instant.
+
+### Files changed
+- `src/Repository/PropertyRepository.php` — `find_posts()` no longer takes `QueryArgs` and loads by
+  id across `QueryArgs::ALLOWED_STATUSES`. The ids were already filtered by the keyset query, so a
+  selected property is now always returned, carrying whatever status it has at that moment. The
+  docblock explains all three `get_posts()` decisions (why not the filter, why not `'any'`, why
+  `suppress_filters` stays on).
+- `src/Pagination/Cursor.php` — new pure `skipped_ids( array $loaded )`: the page ids absent from
+  the loaded posts, in page order.
+- `src/Rest/PropertiesController.php` — collects the loaded ids and publishes
+  `pagination.skipped_ids`.
+- `src/Rest/PropertySchema.php` — the new member documented.
+- `tests/unit/CursorTest.php` — **5 new tests**: nothing skipped, one id skipped, several skipped in
+  page order, the sentinel row beyond the page never reported, and a whole page skipped.
+- `tools/reconcile.php` — accumulates `skipped_ids` across the walk, prints the count, and **checks
+  it is zero**.
+- `docs/contract.md` — `pagination.skipped_ids` row, plus new §5.3 ("Why a status change mid-walk
+  cannot lose a property") and §5.4 (`skipped_ids`), with later sections renumbered.
+- `postman/…collection.json` — `skipped_ids` added to the expected pagination members, plus an
+  assertion that it is an array (logging the ids if any appear).
+
+### What a consumer now sees
+A walk with `?status=publish` can occasionally return an item whose `status` is no longer `publish`.
+That is the property's live state at the moment it was read, and it is strictly better than a gap.
+A property *deleted* between the two queries still cannot be loaded — that id is now listed in
+`skipped_ids` rather than vanishing.
+
+### Verification
+| Check | Result |
+|---|---|
+| `composer cs` / `stan` | clean / No errors (level 8) |
+| `composer test` | **OK (89 tests, 255 assertions)**, 5 of them new |
+| `GET ?per_page=5` | **200**; pagination members are now `after_id,has_more,max_id,next_after_id,per_page,skipped_ids`; `skipped_ids` is `[]` |
+| `GET ?per_page=50&status=trash` | **200**; 50 items, all with status `trash`, `skipped_ids: []` — removing the second filter did not widen what a filtered page returns |
+| `logs wordpress --tail 30` | **0** entries from this plugin |
+
+The race cannot be reproduced on demand on a quiet replica, which is why it is covered by unit tests
+on the pure helper and by a standing check in the reconciliation rather than by a one-off experiment.

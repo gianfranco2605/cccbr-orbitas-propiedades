@@ -50,6 +50,7 @@ function cccbr_orbitas_walk(): array {
 	$queries   = 0;
 	$totals    = array();
 	$max_id    = null;
+	$skipped   = array();
 
 	$with_creator     = 0;
 	$with_associate   = 0;
@@ -86,6 +87,10 @@ function cccbr_orbitas_walk(): array {
 		$totals     = is_array( $body['totals'] ?? null ) ? $body['totals'] : $totals;
 		$pagination = is_array( $body['pagination'] ?? null ) ? $body['pagination'] : array();
 		$max_id     = $pagination['max_id'] ?? $max_id;
+
+		foreach ( (array) ( $pagination['skipped_ids'] ?? array() ) as $skipped_id ) {
+			$skipped[] = (int) $skipped_id;
+		}
 
 		foreach ( (array) ( $body['data'] ?? array() ) as $property ) {
 			if ( ! is_array( $property ) ) {
@@ -179,6 +184,7 @@ function cccbr_orbitas_walk(): array {
 		'issues'           => $issues,
 		'totals'           => $totals,
 		'max_id'           => $max_id,
+		'skipped'          => $skipped,
 		'with_creator'     => $with_creator,
 		'with_associate'   => $with_associate,
 		'with_company'     => $with_company,
@@ -410,6 +416,7 @@ function cccbr_orbitas_reconcile(): void {
 	printf( "| Duplicate ids | %d |\n", count( $api_ids ) - count( $api_unique ) );
 	printf( "| Ids in ascending order across the whole walk | %s |\n", $api_ids === $sorted ? 'yes' : '**no**' );
 	printf( "| `pagination.max_id` reported | %s |\n", null === $walk['max_id'] ? 'null' : (string) (int) $walk['max_id'] );
+	printf( "| Ids selected but not loadable (`pagination.skipped_ids`) | %d |\n", count( (array) $walk['skipped'] ) );
 	printf( "| Database queries for the whole walk | %d |\n", (int) $walk['queries'] );
 	printf( "| Time inside the endpoint | %.2f s |\n\n", (float) $walk['seconds'] );
 
@@ -420,6 +427,7 @@ function cccbr_orbitas_reconcile(): void {
 	$checks[] = cccbr_orbitas_row( 'Ids present in the database but missing from the walk', count( $missing ), 0, count( $missing ) > 0 ? '**omissions**' : 'no omissions' );
 	$checks[] = cccbr_orbitas_row( 'Ids returned that do not exist in the database', count( $extra ), 0, count( $extra ) > 0 ? '**phantoms**' : 'no phantoms' );
 	$checks[] = cccbr_orbitas_row( 'Duplicate ids in the walk', count( $api_ids ) - count( $api_unique ), 0, 0 === count( $api_ids ) - count( $api_unique ) ? 'no duplicates' : '**duplicates**' );
+	$checks[] = cccbr_orbitas_row( 'Ids reported in `pagination.skipped_ids`', count( (array) $walk['skipped'] ), 0, array() === $walk['skipped'] ? 'every selected id loaded' : '**properties were deleted mid-walk**' );
 
 	/*
 	 * `totals.by_status` is cast to an object by the controller so it serializes as `{}` rather

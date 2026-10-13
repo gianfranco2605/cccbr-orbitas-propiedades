@@ -95,6 +95,64 @@ final class CursorTest extends TestCase {
 	}
 
 	/**
+	 * Nothing is skipped when every page ID loaded.
+	 *
+	 * @return void
+	 */
+	public function test_nothing_is_skipped_when_all_ids_load(): void {
+		$cursor = new Cursor( 3, array( 1, 2, 3, 4 ) );
+
+		$this->assertSame( array(), $cursor->skipped_ids( array( 1, 2, 3 ) ) );
+	}
+
+	/**
+	 * An ID selected by the keyset query but absent from the loaded posts is named, not dropped.
+	 *
+	 * This is the race the second query used to lose silently: the cursor has already moved past
+	 * the ID, so if it is not reported it disappears from the walk altogether.
+	 *
+	 * @return void
+	 */
+	public function test_an_id_that_failed_to_load_is_reported(): void {
+		$cursor = new Cursor( 3, array( 10, 11, 12 ) );
+
+		$this->assertSame( array( 11 ), $cursor->skipped_ids( array( 10, 12 ) ) );
+	}
+
+	/**
+	 * Several missing IDs keep the page's order.
+	 *
+	 * @return void
+	 */
+	public function test_skipped_ids_keep_page_order(): void {
+		$cursor = new Cursor( 4, array( 10, 11, 12, 13 ) );
+
+		$this->assertSame( array( 10, 12 ), $cursor->skipped_ids( array( 13, 11 ) ) );
+	}
+
+	/**
+	 * The sentinel row beyond the page is never reported as skipped.
+	 *
+	 * @return void
+	 */
+	public function test_the_extra_fetched_row_is_not_reported_as_skipped(): void {
+		$cursor = new Cursor( 2, array( 1, 2, 3 ) );
+
+		$this->assertSame( array(), $cursor->skipped_ids( array( 1, 2 ) ), 'ID 3 belongs to the next page.' );
+	}
+
+	/**
+	 * Nothing loaded at all means the whole page is skipped.
+	 *
+	 * @return void
+	 */
+	public function test_whole_page_skipped(): void {
+		$cursor = new Cursor( 2, array( 7, 8 ) );
+
+		$this->assertSame( array( 7, 8 ), $cursor->skipped_ids( array() ) );
+	}
+
+	/**
 	 * Walking the whole set with the cursor visits every ID exactly once.
 	 *
 	 * @return void

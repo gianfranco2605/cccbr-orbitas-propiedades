@@ -84,7 +84,7 @@ payload starts lean and grows only on request. Changes 1–5 are **breaking** fo
 **Fixes from the code review**
 
 - [x] **CR1.6 — Dates.** `created_at_gmt` / `modified_at_gmt` are `null` for a zero date, not `""`.
-- [ ] **CR1.7 — Race between the two queries.** `find_posts()` must not re-filter by status, so a
+- [x] **CR1.7 — Race between the two queries.** `find_posts()` must not re-filter by status, so a
   property whose status changes between the two queries is still returned with its current status
   instead of silently vanishing while the cursor moves past it. An ID that cannot be loaded at all
   (deleted in between) is reported in `pagination.skipped_ids`, covered by a test and documented.
