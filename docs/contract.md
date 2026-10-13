@@ -95,8 +95,8 @@ the whole walk (§5).
 
 ## 4. The property object
 
-English `snake_case`. **No field is ever omitted**: a missing source value is `null`, `[]`, `false`
-or `{ "raw": "", "value": null }` as the type below says, so the shape is stable for every item.
+English `snake_case`. **No field is ever omitted**: a missing source value is `null`, `[]` or
+`false` as the type below says, so the shape is stable for every item.
 
 Nothing is inferred. When a value is missing, ambiguous or broken, the item says so in `issues`
 (§4.11) instead of being filled with a guess.
@@ -155,59 +155,64 @@ Nothing is inferred. When a value is missing, ambiguous or broken, the item says
 
 ```json
 "price": {
-  "sale":       { "raw": "185000", "value": 185000 },
-  "rent":       { "raw": "",       "value": null },
-  "final_sale": { "raw": "",       "value": null },
+  "sale":       185000,
+  "rent":       null,
+  "final_sale": null,
   "currency":   null
 }
 ```
 
 | Field | Source | Notes |
 |---|---|---|
-| `price.sale` | `precio-de-venta` | `{ raw, value }` (§4.5) |
-| `price.rent` | `precio-de-alquiler` | `{ raw, value }` |
-| `price.final_sale` | `precio-final-de-venta` | `{ raw, value }`; the key exists on 1032 properties and only 14 have a value |
+| `price.sale` | `precio-de-venta` | number or `null` (§4.5) |
+| `price.rent` | `precio-de-alquiler` | number or `null` |
+| `price.final_sale` | `precio-final-de-venta` | number or `null`; the key exists on 1032 properties and only 14 have a value |
 | `price.currency` | `moneda` | `"Colones"`, `"Dólares"` or **`null`**. Only **9 of 3055** properties have a currency. It is **never inferred** from the amount, the location or anything else; `price_currency_missing` is reported instead |
 
 ### 4.4 Features
 
 ```json
 "features": {
-  "bedrooms":   { "raw": "3",      "value": 3 },
-  "bathrooms":  { "raw": "2",      "value": 2 },
-  "garage":     { "raw": "",       "value": null },
-  "floors":     { "raw": "1",      "value": 1 },
-  "land_area":  { "raw": "350",    "value": 350 },
-  "built_area": { "raw": "180 m2", "value": null },
-  "year_built": { "raw": "2015",   "value": 2015 }
+  "bedrooms":   3,
+  "bathrooms":  2,
+  "garage":     null,
+  "floors":     1,
+  "land_area":  350,
+  "built_area": null,
+  "year_built": 2015
 }
 ```
 
 Sources: `habitaciones`, `banos`, `garage`, `plantas`, `terreno`, `construccion`,
-`ano-de-construccion`. All seven use `{ raw, value }`.
+`ano-de-construccion`. All seven are a number or `null`. In the example `built_area` is `null`
+because the source holds `180 m2`, and the issue list carries
+`{ "code": "number_unparsable", "field": "features.built_area", "detail": "180 m2" }`.
 
-### 4.5 The `{ raw, value }` rule for every number
+### 4.5 The rule for every number
 
-| Member | Type | Meaning |
-|---|---|---|
-| `raw` | string | the stored value exactly as it is in the database (`""` when the key is missing, empty or `NULL`) |
-| `value` | number\|null | the parsed number, **only when unambiguous** |
+Every numeric field is **a number or `null`** — never a wrapper object. A number is produced
+**only** for `^-?\d+$` (integer) and `^-?\d+\.\d{1,2}$` (a decimal with one or two places).
+Anything else is `null`, and the reason **together with the original string** goes into `issues`:
 
-A number is produced **only** for `^-?\d+$` (integer) and `^-?\d+\.\d{1,2}$` (decimal with one or
-two decimals). Everything else keeps `value: null` and raises an issue:
-
-| Stored value | `value` | Issue |
+| Stored value | Field value | Issue (`code` / `detail`) |
 |---|---|---|
 | `185000` | `185000` | — |
 | `1250.50` | `1250.5` | — |
-| `150.000` | `null` | `number_ambiguous:<field>` — dot-thousands or a 3-decimal number cannot be told apart |
-| `150,000` | `null` | `number_ambiguous:<field>` — comma-thousands or decimal comma cannot be told apart |
-| `180 m2`, `$120k`, `2 a 3` | `null` | `number_unparsable:<field>` |
-| `consultar` (no digits) | `null` | `number_unparsable:<field>` |
-| `""`, missing, `NULL` | `null` | `number_missing:<field>` only for `price.sale` (see §4.11) |
+| `150.000` | `null` | `number_ambiguous` / `"150.000"` — dot-thousands or a 3-decimal number cannot be told apart |
+| `150,000` | `null` | `number_ambiguous` / `"150,000"` — comma-thousands or decimal comma cannot be told apart |
+| `180 m2`, `$120k`, `2 a 3` | `null` | `number_unparsable` / the original string |
+| `consultar` (no digits) | `null` | `number_unparsable` / `"consultar"` |
+| `""`, missing, `NULL` | `null` | none, except `number_missing` for `price.sale` (see §4.11) |
 
-This applies to all ten numeric-ish source fields because **every one of them contains non-numeric
-values** (`docs/schema.md` §2.4) — including the four declared as `number` in JetEngine.
+**The issue's `detail` is the only place a raw source value appears.** Until 0.2.0 every numeric
+field was a `{ raw, value }` pair; that put a wrapper on 10 fields of all 3055 properties to carry
+information that only 436 of them actually needed. The raw string is still available — it has simply
+moved to where the problem is reported.
+
+This matters because **every one of the ten numeric source fields contains non-numeric values**
+(`docs/schema.md` §2.4), including the four JetEngine declares as `number`. A consumer should read
+`null` as "ask CCCBR", not as zero, and should **not** re-parse `detail` with a permissive parser:
+that re-introduces exactly the ambiguity the endpoint refused to resolve.
 
 ### 4.6 Text fields
 
@@ -503,8 +508,8 @@ Each change is required by a measurement in `docs/schema.md`; none of them touch
 
 | Sketch | Contract | Why |
 |---|---|---|
-| `price: { sale, rent, final_sale, currency }` with bare numbers | `sale`/`rent`/`final_sale` are `{ raw, value }` | all three contain non-numeric values; `150.000` is ambiguous (§4.5, Q5) |
-| `features`: `bedrooms`, `bathrooms`, `garage`, `floors` as "number or `null`" | all four are `{ raw, value }` too | the four `number`-typed fields also contain non-numeric values — uniformity avoids a second rule and loses no data (§4.5, Q5) |
+| `price: { sale, rent, final_sale, currency }` with bare numbers | **unchanged** — bare numbers, `null` when unparsable | 0.1.0 shipped `{ raw, value }`; 0.2.0 returned to the sketch's shape and moved the raw string into the issue's `detail` (§4.5, Q5) |
+| `features`: `bedrooms`, `bathrooms`, `garage`, `floors` as "number or `null`" | **unchanged** — and `land_area`, `built_area`, `year_built` follow the same rule rather than keeping raw text | the raw text is still reachable, in the issue that explains why the number is missing (§4.5, Q5) |
 | `operation`, `property_type`, … "arrays of `{ key, label }`" | unchanged in shape, with an explicit 7-step normalizer and `label: null` for unmapped tokens | the source mixes keys, labels, folded labels, slugs, pipe-joined strings and literal `false` (§4.2) |
 | `coordinates: { lat, lng, source }` | same, plus `null` for the 107 geocode-error markers and a `coordinates_stale` issue | measured in `docs/schema.md` §5 |
 | `origin: { source, wpuf_form_id }` | same, with `source: "unknown"` for 540 properties | no JetFormBuilder marker exists (§4.10, Q6) |

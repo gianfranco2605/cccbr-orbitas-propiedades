@@ -172,19 +172,19 @@ Synthetic, but every field is present exactly as the endpoint shapes it.
   "amenities":     [],
 
   "price": {
-    "sale":       { "raw": "185000", "value": 185000 },
-    "rent":       { "raw": "", "value": null },
-    "final_sale": { "raw": "", "value": null },
+    "sale":       185000,
+    "rent":       null,
+    "final_sale": null,
     "currency":   "Dólares"
   },
   "features": {
-    "bedrooms":   { "raw": "3", "value": 3 },
-    "bathrooms":  { "raw": "2.5", "value": 2.5 },
-    "garage":     { "raw": "2", "value": 2 },
-    "floors":     { "raw": "2", "value": 2 },
-    "land_area":  { "raw": "350", "value": 350 },
-    "built_area": { "raw": "180 m2", "value": null },
-    "year_built": { "raw": "2015", "value": 2015 }
+    "bedrooms":   3,
+    "bathrooms":  2.5,
+    "garage":     2,
+    "floors":     2,
+    "land_area":  350,
+    "built_area": null,
+    "year_built": 2015
   },
 
   "registry_number": "1-234567-000",
@@ -247,8 +247,10 @@ Synthetic, but every field is present exactly as the endpoint shapes it.
 - **Classification fields are always arrays** of `{ key, label }` — including `property_type`, which
   holds zero or one entry. Import the `key`; show the `label`. A `label` of `null` means the stored
   token matched no known option and is reported in `issues`; the raw token is still in `key`.
-- **Every number is `{ raw, value }`.** `value` is filled only when the stored text is
-  unambiguously numeric. `raw` always holds exactly what CCCBR typed. See §7.
+- **Every number is a number or `null`.** It is filled only when the stored text is unambiguously
+  numeric. When it is `null` and the source was not empty, the `issues` list carries the reason
+  **and the original string** — in the example above, `built_area` is `null` because the source
+  holds `180 m2`. See §7.
 - **`location` includes the full path.** Level 1 is the province, 2 the cantón, 3 the distrito. A
   property assigned only a distrito still arrives with its cantón and province.
 - **`coordinates` are geocoded from the `map_raw` text**, not surveyed — hence the explicit
@@ -267,21 +269,24 @@ Synthetic, but every field is present exactly as the endpoint shapes it.
 
 ---
 
-## 7. Why numbers come as `{ raw, value }`
+## 7. Why a number can be `null`
 
 The source stores these fields as free text, and people have typed into them for years. Measured
 across the ten numeric fields of all 3055 properties:
 
 | | Count | Example | What the endpoint does |
 |---|---|---|---|
-| Unambiguously numeric | 13 106 of 13 392 non-empty feature values | `185000`, `2.5` | `value` is the number |
-| **Ambiguous separators** | **329** | `150.000`, `150,000`, `1.250,75` | `value: null` + `number_ambiguous`. `150.000` is either one hundred fifty thousand or a number with three decimals, and 333 properties genuinely use decimals for half-bathrooms, so guessing would corrupt prices |
-| **Not a number at all** | **107** | `180 m2`, `$120k`, `2 a 3`, `consultar` | `value: null` + `number_unparsable` |
+| Unambiguously numeric | 13 106 of 13 392 non-empty feature values | `185000`, `2.5` | the field is the number |
+| **Ambiguous separators** | **329** | `150.000`, `150,000`, `1.250,75` | `null` + `number_ambiguous`, `detail` = the original string. `150.000` is either one hundred fifty thousand or a number with three decimals, and 333 properties genuinely use decimals for half-bathrooms, so guessing would corrupt prices |
+| **Not a number at all** | **107** | `180 m2`, `$120k`, `2 a 3`, `consultar` | `null` + `number_unparsable`, `detail` = the original string |
 
-So: use `value` when it is not null; show or queue `raw` for human review when it is. **Do not
-re-parse `raw` with a permissive parser** — that re-introduces exactly the ambiguity the endpoint
-refused to resolve. If CCCBR cleans these fields, the same properties will start returning a `value`
-with no change on your side.
+So: use the field when it is not `null`; when it is, look for the matching issue and queue its
+`detail` for human review. **Do not re-parse `detail` with a permissive parser** — that
+re-introduces exactly the ambiguity the endpoint refused to resolve. If CCCBR cleans these fields,
+the same properties will start returning a number with no change on your side.
+
+Matching an issue to a field is direct: `issues[].field` holds the contract path, for example
+`features.built_area` or `price.sale`.
 
 ---
 

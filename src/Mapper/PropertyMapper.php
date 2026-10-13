@@ -276,7 +276,7 @@ final class PropertyMapper {
 	 * @param array          $meta      Raw meta.
 	 * @param array          $operation Already-mapped operation entries.
 	 * @param IssueCollector $issues    Issue sink.
-	 * @return array<string, mixed>
+	 * @return array{sale: int|float|null, rent: int|float|null, final_sale: int|float|null, currency: string|null}
 	 *
 	 * @phpstan-param array<string, mixed> $meta
 	 * @phpstan-param list<array{key: string, label: string|null}> $operation
@@ -300,9 +300,9 @@ final class PropertyMapper {
 		}
 
 		return array(
-			'sale'       => $this->strip_state( $sale ),
-			'rent'       => $this->strip_state( $rent ),
-			'final_sale' => $this->strip_state( $final_sale ),
+			'sale'       => $sale['value'],
+			'rent'       => $rent['value'],
+			'final_sale' => $final_sale['value'],
 			'currency'   => $currency,
 		);
 	}
@@ -345,7 +345,7 @@ final class PropertyMapper {
 	 *
 	 * @param array          $meta   Raw meta.
 	 * @param IssueCollector $issues Issue sink.
-	 * @return array<string, array{raw: string, value: int|float|null}>
+	 * @return array<string, int|float|null>
 	 *
 	 * @phpstan-param array<string, mixed> $meta
 	 */
@@ -353,9 +353,9 @@ final class PropertyMapper {
 		$features = array();
 
 		foreach ( self::FEATURE_FIELDS as $contract_field => $source_key ) {
-			$features[ $contract_field ] = $this->strip_state(
-				$this->map_number( 'features.' . $contract_field, $meta, $source_key, $issues )
-			);
+			$parsed = $this->map_number( 'features.' . $contract_field, $meta, $source_key, $issues );
+
+			$features[ $contract_field ] = $parsed['value'];
 		}
 
 		return $features;
@@ -363,6 +363,11 @@ final class PropertyMapper {
 
 	/**
 	 * Parses one numeric field and reports why it could not be parsed.
+	 *
+	 * The response carries the parsed number alone. When the stored text cannot be parsed, the
+	 * **original string travels in the issue's `detail`** — that is the only place a raw source
+	 * value now appears, so a consumer can still see what a human typed without every numeric field
+	 * carrying a wrapper object.
 	 *
 	 * @param string         $contract_field Contract field name, used in issue reports.
 	 * @param array          $meta           Raw meta.
@@ -483,21 +488,6 @@ final class PropertyMapper {
 		}
 
 		return false;
-	}
-
-	/**
-	 * Drops the internal parse state, leaving the published `{ raw, value }` pair.
-	 *
-	 * @param array $parsed Parse result.
-	 * @return array{raw: string, value: int|float|null}
-	 *
-	 * @phpstan-param array{raw: string, value: int|float|null, state: string} $parsed
-	 */
-	private function strip_state( array $parsed ): array {
-		return array(
-			'raw'   => $parsed['raw'],
-			'value' => $parsed['value'],
-		);
 	}
 
 	/**

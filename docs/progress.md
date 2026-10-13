@@ -1049,3 +1049,35 @@ against the running site before its commit.
 | `GET ?per_page=3` | **200**; every attachment object (27 of them) has exactly `alt,height,id,mime_type,url,width` |
 | Featured image also present in the gallery | **2 of 3** properties on the first page — the de-duplication note in the guide is warranted, not hypothetical |
 | `logs wordpress --tail 100` | **0** entries from this plugin |
+
+## CR1.2 — Numbers: plain values
+
+### Files changed
+- `src/Mapper/PropertyMapper.php` — `price.sale/rent/final_sale` and all seven `features.*` are now
+  the parsed number or `null`. `strip_state()` is deleted; the parse result is still used internally
+  for the `number_missing` and `price_currency_missing` checks, and `map_number()`'s docblock records
+  that the issue's `detail` is now the only place a raw source value appears.
+- `src/Rest/PropertySchema.php` — `number_field()` is a nullable number instead of an object.
+- `docs/contract.md` §4 preamble, §4.3, §4.4, §4.5 (rewritten, with the before/after rationale) and
+  the §9 comparison rows.
+- `docs/OPEN-QUESTIONS.md` — **Q5 now ANSWERED** with the decision and the reasoning.
+- `postman/…collection.json` — the `{ raw, value }` assertion is replaced by two: every numeric
+  field is a number or `null`, and every `number_ambiguous`/`number_unparsable` issue carries a
+  non-empty string in `detail`.
+- `docs/consumer-guide.md` — the synthetic example, the "Reading it" bullet and §7 (now "Why a
+  number can be `null`"), including how to match an issue to its field through `issues[].field`.
+
+### Why
+The wrapper placed an object on 10 fields of every one of the 3055 properties — 30 550 objects — to
+carry information that only **436** values actually need. The raw string is not lost: it moved to the
+issue that explains why the number is missing, which is where a consumer looks anyway.
+
+### Verification
+| Check | Result |
+|---|---|
+| `composer cs` | 0 errors / 0 warnings |
+| `composer stan` | No errors (level 8) |
+| `composer test` | OK (71 tests, 195 assertions) |
+| `GET ?per_page=100`, type census over all 10 numeric fields | **0** values that are neither a number nor `null`; types are `integer`, `double` or `NULL` only |
+| Raw strings preserved | **16** `number_ambiguous`/`number_unparsable` issues on that page, **all 16** carrying a non-empty string in `detail`, **0** without |
+| `logs wordpress --tail 60` | **0** entries from this plugin |

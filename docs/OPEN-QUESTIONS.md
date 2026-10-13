@@ -57,26 +57,24 @@ is read: no national ID (`cedula_corredor`), phone, birth date, payment status o
 
 ---
 
-## Q5 — `{ raw, value }` shape for every numeric field
+## Q5 — the shape of numeric fields
 
-**Status:** OPEN — decision applied, confirmation wanted
+**Status:** ANSWERED by Gianfranco in change request 1 (13 Oct 2026)
 
-The contract in `LOOP_PROMPT.md` §6 promises plain `number`-or-`null` for `bedrooms`, `bathrooms`,
-`garage`, `floors`, and "raw text + parsed number only when unambiguous" for `land_area`,
-`built_area`, `year_built`.
+**Decision: plain values.** Every numeric field — the three prices and all seven features — is a
+number or `null`. There is no `{ raw, value }` wrapper.
 
-Measurement (see `docs/schema.md` §2.4) shows **all ten** numeric-ish source fields contain
-non-numeric values, including the four `number`-typed ones, and that values like `150.000` /
-`150,000` are genuinely ambiguous (thousands separator vs decimal).
+When a non-empty source value cannot be parsed, the field is `null` and the **original string
+travels in the issue's `detail`** (`number_ambiguous` or `number_unparsable`). That is now the only
+place a raw source value appears in the response.
 
-**Applied:** every numeric-ish field — the three prices and all seven features — is exposed as
-`{ "raw": "<stored string>", "value": <number|null> }`. A number is produced only for `^-?\d+$`
-and `^-?\d+\.\d{1,2}$`; ambiguous and unparsable values give `value: null` plus an `issues` code,
-with the raw string always preserved.
+Why this is the right trade: the wrapper put an object on 10 fields of all 3055 properties — 30 550
+objects — to carry information that only **436** values actually needed, and Orbitas has not
+validated the contract yet, so the payload should start lean. Nothing is lost: the raw string is
+still delivered, at the point where the problem is reported.
 
-**If Orbitas wants flat numbers instead**, they lose the **436** values that cannot be parsed
-safely (329 ambiguous + 107 unparsable, measured across the ten fields). That is an import
-decision, not a technical one.
+Implemented in 0.2.0 (`Mapper\PropertyMapper`, `Rest\PropertySchema`, `docs/contract.md` §4.3–4.5).
+Superseded the earlier "decision applied, confirmation wanted" from Task 6.
 
 ---
 

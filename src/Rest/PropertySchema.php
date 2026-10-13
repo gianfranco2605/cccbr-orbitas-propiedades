@@ -249,20 +249,18 @@ final class PropertySchema {
 	}
 
 	/**
-	 * A `{ raw, value }` numeric field.
+	 * A numeric field: the parsed number, or null.
+	 *
+	 * When the stored text cannot be parsed the value is null and the reason, together with the
+	 * original string, appears in the property's `issues`.
 	 *
 	 * @param string $description Human description.
 	 * @return array<string, mixed>
 	 */
 	private function number_field( string $description ): array {
-		return array(
-			'description'          => $description . ' value is null unless the stored string is unambiguously numeric; raw always holds the stored string.',
-			'type'                 => 'object',
-			'additionalProperties' => false,
-			'properties'           => array(
-				'raw'   => $this->field( 'string', 'Stored value exactly as it is in the database.' ),
-				'value' => $this->nullable_field( 'number', 'Parsed number, or null when empty, ambiguous or unparsable.' ),
-			),
+		return $this->nullable_field(
+			'number',
+			$description . ' Null when empty, ambiguous or unparsable; the original string is then reported in issues.'
 		);
 	}
 

@@ -66,7 +66,7 @@ payload starts lean and grows only on request. Changes 1–5 are **breaking** fo
 
 - [x] **CR1.1 — Media: drop `sizes`.** `media.featured` and every `media.gallery` item keep `id`,
   `url` (the original), `mime_type`, `width`, `height`, `alt`. Remove the code that only served sizes.
-- [ ] **CR1.2 — Numbers: plain values.** Replace every `{ raw, value }` pair (`price.sale`,
+- [x] **CR1.2 — Numbers: plain values.** Replace every `{ raw, value }` pair (`price.sale`,
   `price.rent`, `price.final_sale`, `features.*`) with the number or `null`. An ambiguous or
   unparsable non-empty source value yields `null` plus the existing issue
   (`number_ambiguous` / `number_unparsable`) carrying the original raw string in `detail` — the only
