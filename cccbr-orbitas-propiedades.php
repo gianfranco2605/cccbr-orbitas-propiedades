@@ -58,4 +58,11 @@ if ( ! is_readable( $cccbr_orbitas_autoload ) ) {
 
 require_once $cccbr_orbitas_autoload;
 
-// Task 3 wires the bootstrap call here: ( new Plugin() )->register().
+register_activation_hook(
+	__FILE__,
+	static function (): void {
+		( new Lifecycle\Activator() )->activate();
+	}
+);
+
+( new Plugin( __FILE__ ) )->register();

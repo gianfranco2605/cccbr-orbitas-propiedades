@@ -6,6 +6,7 @@ parameters:
 	phpVersion: 80113
 	paths:
 		- cccbr-orbitas-propiedades.php
+		- uninstall.php
 		- src
 		- tests
 	excludePaths:

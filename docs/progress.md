@@ -213,3 +213,53 @@ which records the query that produced it.
 - Implement the skeleton (`Plugin`, `Lifecycle\Activator`, `uninstall.php`), activate on the
   replica with `--skip-plugins --skip-themes`, confirm the capability on `administrator` and that
   the logs stay clean.
+
+---
+
+## 2026-10-13 — Task 3 — Skeleton and lifecycle
+
+### Files changed
+- `src/Auth/Permissions.php` (new) — `CAPABILITY = 'cccbr_orbitas_read_propiedades'` and the REST
+  permission callback: `401 cccbr_orbitas_not_authenticated` when no user is authenticated,
+  `403 cccbr_orbitas_forbidden` when the user lacks the capability, `true` otherwise.
+- `src/Lifecycle/Activator.php` (new) — adds the capability to the `administrator` role, guarded
+  against a missing role and idempotent. No table, option, user, password or rewrite flush.
+- `src/Plugin.php` (new) — hook wiring only; currently loads the text domain on `init` (WordPress
+  6.7+ warns if a text domain is loaded earlier). The REST controller is wired in Task 4.
+- `uninstall.php` (new) — guarded by `WP_UNINSTALL_PLUGIN`; removes the capability from **every**
+  role (a site owner may have granted it elsewhere). Uses the autoloaded constant when `vendor/` is
+  present and a literal fallback when it is not, so uninstall works without Composer.
+- `cccbr-orbitas-propiedades.php` — added `register_activation_hook()` (closure delegating to
+  `Activator`) and the single bootstrap call `( new Plugin( __FILE__ ) )->register()`.
+- `phpstan.neon.dist` — `uninstall.php` added to the analysed paths.
+- `src/.gitkeep` removed (the directory now holds real files).
+
+### Commands run and results
+| Command | Result |
+|---|---|
+| `composer lint` | no syntax errors (7 PHP files) |
+| `composer cs` | **7 files, 0 errors / 0 warnings** (one `Generic.Commenting.DocComment.MissingShort` fixed) |
+| `composer stan` | **No errors** (level 8, 7 files) |
+| `wp plugin status … --skip-plugins --skip-themes` | before: `Inactive`, version 0.1.0, author ElPuas Digital Crafts |
+| `wp plugin activate cccbr-orbitas-propiedades … --skip-plugins --skip-themes` | `Success: Activated 1 of 1 plugins.` |
+| `wp cap list administrator … --skip-plugins --skip-themes` | contains **`cccbr_orbitas_read_propiedades`** — **VERIFIED** |
+| `wp cap list subscriber … --skip-plugins --skip-themes` | **0** matches for `cccbr_orbitas` — **VERIFIED**, so `orbitas-noaccess` cannot read |
+| `curl -s -o /dev/null -w` on `/` and `/wp-json/` | **200** and **200** — activation broke nothing |
+| `curl -s http://localhost:8080/wp-json/` | namespaces containing "cccbr": `cccbr/v1`, `cccbr` — i.e. **only the old plugin**. `cccbr-orbitas/v1` is absent, as expected before Task 4 |
+| `logs wordpress` | **0** occurrences of `cccbr-orbitas-propiedades` in the entire log — no notice, warning or error from this plugin. **VERIFIED** |
+
+### Facts
+- **VERIFIED** The activation hook fires under `wp plugin activate --skip-plugins --skip-themes`:
+  `activate_plugin()` includes the target plugin file itself, so the capability is granted even
+  though every other plugin is skipped (which is what keeps WP-CLI inside its 128 MB limit).
+- **VERIFIED** The old plugin `cccbr-api-propiedades` is untouched and still serves `cccbr/v1`.
+- The only PHP warning in the container log comes from `astra-addon`
+  (`class-astra-ext-header-sections-markup.php:1179`, undefined variable) and predates this work.
+  Not ours, not in scope.
+- Activation writes exactly two things to the replica: `cccbr-orbitas-propiedades` in
+  `active_plugins`, and the capability in the `administrator` role — both reversed by deactivation
+  plus uninstall.
+
+### Open points carried into Task 4
+- Register `cccbr-orbitas/v1/propiedades` with the permission callback and argument validation,
+  then verify 401 / 403 / 400 / 200 with the two test credentials.
