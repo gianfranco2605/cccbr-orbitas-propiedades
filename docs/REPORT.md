@@ -7,7 +7,7 @@ replica, **not deployed** (deployment to production is outside this scope).
 
 ## 1. What was built
 
-Two authenticated, read-only REST routes that hand the Orbitas team every exported CCCBR property
+Two public REST routes that hand the Orbitas team every exported CCCBR property
 with everything needed to import it:
 
 ```

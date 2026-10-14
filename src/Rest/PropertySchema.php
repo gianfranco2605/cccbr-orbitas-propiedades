@@ -217,7 +217,7 @@ final class PropertySchema {
 	}
 
 	/**
-	 * A read-only scalar field.
+	 * A scalar field the schema marks as not writable.
 	 *
 	 * @param string $type        JSON Schema type.
 	 * @param string $description Human description.
@@ -233,7 +233,7 @@ final class PropertySchema {
 	}
 
 	/**
-	 * A read-only scalar field that may be null.
+	 * A scalar field that may be null, marked as not writable.
 	 *
 	 * @param string $type        JSON Schema type.
 	 * @param string $description Human description.

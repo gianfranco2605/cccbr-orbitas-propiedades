@@ -17,8 +17,8 @@ overrides the Authentication and Authorization rows of the project's decisions t
   `permission_callback` of both routes returns `true`. No authentication, no capability, no API key:
   any `GET` to the route reads the data, the creator's name and email included. The URL is now the
   only thing protecting the payload.
-- Responses still set `Cache-Control: no-store`, so no intermediary retains them. Still read-only:
-  only a readable method is registered on either route.
+- Responses still set `Cache-Control: no-store`, so no intermediary retains them. Only `GET` is
+  registered on either route, so no request can change data.
 - `uninstall.php` keeps removing `cccbr_orbitas_read_propiedades` from every role, so a site that
   installed 0.4.0 or earlier is cleaned up. It no longer reads the capability from a class constant.
 
@@ -196,7 +196,7 @@ deployment to production is outside this scope.
 ### Added
 
 **The endpoint**
-- `GET /wp-json/cccbr-orbitas/v1/propiedades`: authenticated, read-only, collection only.
+- `GET /wp-json/cccbr-orbitas/v1/propiedades`: authenticated, collection only.
 - WordPress Application Passwords (HTTP Basic) for authentication; the dedicated capability
   `cccbr_orbitas_read_propiedades` for authorization, granted to `administrator` on activation and
   removed from every role on uninstall. The plugin never creates users or passwords.

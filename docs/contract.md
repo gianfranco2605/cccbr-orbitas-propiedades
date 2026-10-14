@@ -36,7 +36,7 @@ in this repository comes from it.
 |---|---|
 | Routes | `GET /wp-json/cccbr-orbitas/v1/propiedades` — the collection (§3)<br>`GET /wp-json/cccbr-orbitas/v1/propiedades/{id}` — one property (§3.1) |
 | Namespace / version | `cccbr-orbitas/v1` |
-| Methods | `GET` (and `HEAD`) on both. They are **read-only**: no side effects, and no writable method is registered |
+| Methods | `GET` (and `HEAD`) on both. No writable method is registered, and no request has side effects |
 | Access | **public** since 0.5.0. No authentication, no capability, no API key: the permission callback of both routes returns `true`. Anyone who knows the URL can read every exported property, the creator's name and email included |
 | Capability | none. The plugin grants nothing on activation; `uninstall.php` still removes `cccbr_orbitas_read_propiedades` from every role so sites that installed 0.4.0 or earlier are cleaned up |
 | Content type | `application/json; charset=UTF-8` |
@@ -561,7 +561,7 @@ API instead of transcribing this document:
 
 **Guaranteed**
 
-- Read-only: no `GET` to either route changes any data.
+- No `GET` to either route changes any data.
 - Every status in the source is reachable; there is **no** implicit filter by date, publication,
   featured flag or associate status.
 - The item shape is stable: no field is ever omitted, and **the two routes return the identical object** for the same property.
@@ -623,6 +623,6 @@ Each change is required by a measurement in `docs/schema.md`; none of them touch
 | `associate_id` "from a real source field" | user meta `numero-de-asociado` | the only real source; flagged as Q4 because it is user meta |
 | `marketplace_id` "from a real source field, else `null`" | always `null` | no such field exists anywhere in the source (§4.10) |
 | `issues`: "machine-readable codes" | the fixed 22-code list in §4.11, each `{ code, field, detail }` | needed a concrete, stable enumeration to be consumable |
-| "Route … read-only, **collection only**" | a second route, `…/propiedades/{id}`, returning the same object | CCCBR asked in change request 3 for a way to refresh one property without reading the whole collection. This **extends** that row; the route is read-only and shares the collection's access rules |
+| "Route … **collection only**" | a second route, `…/propiedades/{id}`, returning the same object | CCCBR asked in change request 3 for a way to refresh one property without reading the whole collection. This **extends** that row; the route answers `GET` only and shares the collection's access rules |
 | "Authentication: **Application Passwords**" and "Authorization: capability `cccbr_orbitas_read_propiedades`" | **both routes are public**: no authentication, no capability, no `401`, no `403` | change request 5 (14 Oct 2026) — CCCBR decided the endpoint must be readable without credentials for the duration of the migration. This overrides both rows of the decisions table; the endpoint is to be removed afterwards |
 | "**All** statuses of the CPT by default … `trash`" and the whole "Trashed properties" row | **trashed properties are not exported at all**: not in the default set, not accepted as a filter, not counted in `totals`, and the `trash` object is gone | CCCBR decided in change request 2 that deleted properties must not reach Orbitas. This overrides those two rows of the decisions table, and the three trash meta keys are no longer read anywhere |

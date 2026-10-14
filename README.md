@@ -1,7 +1,7 @@
 # CCCBR Orbitas Propiedades
 
 WordPress plugin for CCCBR (Cámara Costarricense de Corredores de Bienes Raíces) that exposes one
-**public, read-only REST endpoint** so the Orbitas team can pull every CCCBR property — complete
+**public REST endpoint** so the Orbitas team can pull every CCCBR property — complete
 property data, images, relations and the data of the user who created each property — and import
 them into their Marketplace.
 
@@ -17,7 +17,7 @@ GET /wp-json/cccbr-orbitas/v1/propiedades          # the collection, keyset-pagi
 GET /wp-json/cccbr-orbitas/v1/propiedades/{id}     # one property, for refreshing a single record
 ```
 
-Both routes are read-only.
+Both routes answer `GET` (and `HEAD`). No writable method is registered.
 
 - **Access: public.** No authentication and no capability — anyone with the URL can read the data
   (decision of 14 Oct 2026). The endpoint is meant to be removed once the migration is done.

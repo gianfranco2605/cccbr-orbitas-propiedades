@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       CCCBR Orbitas Propiedades
  * Plugin URI:        https://github.com/gianfranco2605/cccbr-orbitas-propiedades
- * Description:       Public, read-only REST endpoints exposing CCCBR properties (data, media, relations and creator) for the Orbitas Marketplace import.
+ * Description:       Public REST endpoints exposing CCCBR properties (data, media, relations and creator) for the Orbitas Marketplace import.
  * Version:           0.5.0
  * Requires at least: 6.9
  * Requires PHP:      8.1

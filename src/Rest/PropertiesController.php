@@ -28,8 +28,8 @@ use WP_REST_Server;
  * explicitly here.
  *
  * The endpoint is **public**: change request 5 (14 Oct 2026) removed authentication and the
- * capability check, so anyone holding the URL can read it. It stays read-only, and is meant to be
- * removed once the Orbitas migration is done.
+ * capability check, so anyone holding the URL can read it. Only `GET` is registered, so no request
+ * can change data, and the endpoint is meant to be removed once the Orbitas migration is done.
  */
 final class PropertiesController {
 

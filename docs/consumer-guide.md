@@ -13,7 +13,7 @@ record appears in this repository.
 
 ## 1. In one paragraph
 
-One public, read-only endpoint returns every CCCBR property that is **not in the trash** —
+One public endpoint returns every CCCBR property that is **not in the trash** —
 published and draft alike — with its custom fields, location, coordinates, images, the data of the
 associate who created it, and a per-property list of data-quality issues. It is paginated with a
 cursor on the WordPress post id, so walking it from start to finish is safe even while people keep
@@ -53,7 +53,7 @@ GET /wp-json/cccbr-orbitas/v1/propiedades          # the collection, paginated
 GET /wp-json/cccbr-orbitas/v1/propiedades/{id}     # one property
 ```
 
-Both are public and read-only. The collection's arguments:
+Both are public. The collection's arguments:
 
 | Argument | Default | Range | Meaning |
 |---|---|---|---|
