@@ -52,6 +52,28 @@ composer stan   # PHPStan level 8
 composer test   # PHPUnit unit suite (no WordPress bootstrap)
 ```
 
+## Building for production
+
+```bash
+composer run build          # -> dist/cccbr-orbitas-propiedades.zip
+composer run build:verify   # list the archive and assert it is shippable
+```
+
+The zip has a single top-level folder, `cccbr-orbitas-propiedades/`, so WordPress installs it under
+that slug. It contains the plugin, `uninstall.php`, `src/`, `README.md`, `CHANGELOG.md` and
+`vendor/` — **38 files, ~72 KB**.
+
+`vendor/` ships because the plugin needs it at runtime: the main file includes
+`vendor/autoload.php` and shows an admin notice instead of doing anything when it is missing. After
+`composer install --no-dev` it holds nothing but Composer's own autoloader, because the plugin has
+no production dependencies.
+
+Everything development-only is listed in [`.distignore`](.distignore) — tests, tools, docs, the
+Postman collection, the Composer manifests and every tool config. The build works on a **temporary
+copy** and runs `composer install --no-dev --optimize-autoloader` there, so the repository's own
+`vendor/` (PHPCS, PHPStan, PHPUnit) is never touched and `composer cs` keeps working straight after
+a build.
+
 Working conventions, the local replica setup and the hard limits are documented in
 [`CLAUDE.md`](CLAUDE.md). Progress and verified facts are logged in
 [`docs/progress.md`](docs/progress.md).

@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **A production build.** `composer run build` creates
+  `dist/cccbr-orbitas-propiedades.zip` with a single top-level folder `cccbr-orbitas-propiedades/`
+  (38 files, ~72 KB), and `composer run build:verify` lists it and asserts it is shippable.
+- `.distignore` naming every development-only path, with a header recording what the zip *does*
+  contain and why.
+- `dist/` is git-ignored.
+
+The build never touches the repository's `vendor/`: it stages the shippable files into a temporary
+directory, runs `composer install --no-dev --optimize-autoloader` there, deletes the manifests it
+needed, and zips the result. `vendor/` ships because the plugin includes `vendor/autoload.php` at
+runtime; with `--no-dev` it is only Composer's own autoloader, as the plugin has no production
+dependencies.
+
+### Removed
+
+- `src/.gitkeep`, vestigial since `src/` gained real files in Task 3 — it was the one stray file the
+  first build put in the archive.
+
 ## [0.4.0] — 2026-10-13
 
 Change request 3. Orbitas must be able to refresh one property without reading the whole collection.

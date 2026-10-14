@@ -157,7 +157,13 @@ Exported by Gianfranco as `CCCBR_API_USER`, `CCCBR_API_APP_PASSWORD`, `CCCBR_API
   `dealerdirect/phpcodesniffer-composer-installer`, `phpstan/phpstan`,
   `szepeviktor/phpstan-wordpress`, `phpunit/phpunit`. Declare them in `composer.json` and run
   `composer install` (do not use `composer require`).
-- Scripts: `composer lint`, `cs`, `cbf`, `stan`, `test`.
+- Scripts: `composer lint`, `cs`, `cbf`, `stan`, `test`, and for releases
+  `composer run build` / `composer run build:verify`.
+- **The production zip must be built with `composer run build`**, never by zipping the working tree.
+  It stages the files `.distignore` allows into a temporary directory, runs
+  `composer install --no-dev --optimize-autoloader` **there**, drops the manifests, and zips the
+  result — so the repository's dev `vendor/` is never disturbed. `vendor/` is shipped because the
+  plugin requires `vendor/autoload.php` at runtime.
 - PHPUnit covers pure units without WordPress (cursor, mappers with injected data, type coercion).
 - `.gitignore`: `vendor/`, `node_modules/`, `*.sql`, `*.sql.gz`, `.env*`,
   `.claude/settings.local.json`, OS/editor files, Postman environment files.

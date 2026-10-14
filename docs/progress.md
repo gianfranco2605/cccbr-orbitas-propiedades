@@ -1568,3 +1568,135 @@ applies, and that is what ships. It is worth recording the reasoning in the code
 docs — which the `NOT_FOUND_CODE` docblock now does — because the natural instinct when debugging is
 to "helpfully" split these into distinct errors, and that would quietly turn the endpoint into a
 probe for what exists on the site.
+
+---
+
+# Change request 4 — 2026-10-14 — production build zip
+
+## Does the plugin need `vendor/` at runtime? **Yes.**
+
+`cccbr-orbitas-propiedades.php:51-57` includes `vendor/autoload.php` and, when it is unreadable,
+registers an admin notice and `return`s — so without `vendor/` the plugin loads and does **nothing**:
+no routes, no capability grant, no classes. Every class in `src/` resolves through Composer's PSR-4
+map (`ElPuas\CCCBR\OrbitasPropiedades\` → `src/`); there is no manual `require` fallback.
+
+What ships in `vendor/` is only **Composer's own autoloader**: `composer.json` has one production
+requirement, `php: >=8.1`, and no package dependencies at all. So `--no-dev` leaves 12 files — the
+loader, its generated maps, `InstalledVersions`, `platform_check.php` and Composer's licence.
+
+## Files added
+- **`.distignore`** — every development-only path: `.git*`, `.github`, `.claude`, `CLAUDE.md`,
+  `LOOP_PROMPT.md`, `composer.json`, `composer.lock`, the PHPCS/PHPStan/PHPUnit configs and caches,
+  `tests/`, `tools/`, `docs/`, `postman/`, `dist/`, and OS/editor noise. Its header documents what
+  the zip *does* contain and why, so the next person does not have to infer the policy from
+  omissions.
+- **`tools/build.php`** (`composer run build`) — stages the allowed files into
+  `dist/build-<pid>/cccbr-orbitas-propiedades/`, copies the two manifests in, runs
+  `composer install --no-dev --optimize-autoloader` **in that copy**, deletes the manifests again,
+  zips with `ZipArchive`, and removes the work directory. It fails loudly if `.distignore` is
+  missing or if `vendor/autoload.php` does not appear after the install, rather than shipping a
+  broken archive.
+- **`tools/verify-build.php`** (`composer run build:verify`) — lists every entry and asserts four
+  things: the runtime files are present including `vendor/autoload.php`; no development dependency
+  shipped (17 package-name prefixes checked under `vendor/`); nothing `.distignore` excludes
+  shipped; and the archive has exactly one top-level folder. Written as a script rather than done by
+  eye once, so a future release is checked the same way.
+- `dist/` added to `.gitignore`; `src/.gitkeep` deleted (vestigial since Task 3 — it was the one
+  stray file the first build put in the archive).
+
+## The repository's `vendor/` is untouched
+| Measurement | Before the build | After the build |
+|---|---|---|
+| files under `vendor/` | **3907** | **3907** |
+| top-level entries | `autoload.php bin composer dealerdirect doctrine myclabs nikic phar-io php-stubs phpcompatibility phpcsstandards phpstan phpunit sebastian squizlabs symfony szepeviktor theseer wp-coding-standards` | identical |
+| `composer cs` / `stan` / `test` run immediately afterwards | — | clean / No errors / OK (112 tests) |
+
+## Every file in the zip — 38 files, 72.0 KB
+
+```
+cccbr-orbitas-propiedades/CHANGELOG.md
+cccbr-orbitas-propiedades/README.md
+cccbr-orbitas-propiedades/cccbr-orbitas-propiedades.php
+cccbr-orbitas-propiedades/uninstall.php
+cccbr-orbitas-propiedades/src/Auth/Permissions.php
+cccbr-orbitas-propiedades/src/Factory.php
+cccbr-orbitas-propiedades/src/Lifecycle/Activator.php
+cccbr-orbitas-propiedades/src/Mapper/CoordinatesMapper.php
+cccbr-orbitas-propiedades/src/Mapper/LocationMapper.php
+cccbr-orbitas-propiedades/src/Mapper/MediaMapper.php
+cccbr-orbitas-propiedades/src/Mapper/PeopleMapper.php
+cccbr-orbitas-propiedades/src/Mapper/PropertyMapper.php
+cccbr-orbitas-propiedades/src/Pagination/Cursor.php
+cccbr-orbitas-propiedades/src/Plugin.php
+cccbr-orbitas-propiedades/src/Repository/PropertyRepository.php
+cccbr-orbitas-propiedades/src/Repository/RelationsRepository.php
+cccbr-orbitas-propiedades/src/Rest/PropertiesController.php
+cccbr-orbitas-propiedades/src/Rest/PropertySchema.php
+cccbr-orbitas-propiedades/src/Rest/QueryArgs.php
+cccbr-orbitas-propiedades/src/Schema/FieldMap.php
+cccbr-orbitas-propiedades/src/Support/IdListParser.php
+cccbr-orbitas-propiedades/src/Support/IssueCode.php
+cccbr-orbitas-propiedades/src/Support/IssueCollector.php
+cccbr-orbitas-propiedades/src/Support/LocationResolver.php
+cccbr-orbitas-propiedades/src/Support/NumberParser.php
+cccbr-orbitas-propiedades/src/Support/OptionNormalizer.php
+cccbr-orbitas-propiedades/vendor/autoload.php
+cccbr-orbitas-propiedades/vendor/composer/ClassLoader.php
+cccbr-orbitas-propiedades/vendor/composer/InstalledVersions.php
+cccbr-orbitas-propiedades/vendor/composer/LICENSE
+cccbr-orbitas-propiedades/vendor/composer/autoload_classmap.php
+cccbr-orbitas-propiedades/vendor/composer/autoload_namespaces.php
+cccbr-orbitas-propiedades/vendor/composer/autoload_psr4.php
+cccbr-orbitas-propiedades/vendor/composer/autoload_real.php
+cccbr-orbitas-propiedades/vendor/composer/autoload_static.php
+cccbr-orbitas-propiedades/vendor/composer/installed.json
+cccbr-orbitas-propiedades/vendor/composer/installed.php
+cccbr-orbitas-propiedades/vendor/composer/platform_check.php
+```
+
+26 plugin files + 12 Composer autoloader files. **No dev dependency**: nothing from PHPUnit,
+PHPStan, PHPCS, WPCS, PHPCompatibility, the WordPress stubs or any of their transitive packages, and
+no `tests/`, `tools/`, `docs/`, `postman/`, `.claude/`, manifests or tool configs.
+
+## Installed in the replica, then restored
+
+**A deliberate deviation:** I did **not** use `wp plugin install --force`. That would overwrite
+`wp-content/plugins/cccbr-orbitas-propiedades`, which **is** the git working tree of this
+repository — it would have destroyed the source. The zip was extracted into a sibling folder,
+`cccbr-orbitas-propiedades-dist`, which tests the artifact just as honestly: WordPress identifies a
+plugin by its directory, and every path in this plugin derives from `__FILE__`.
+
+| Step | Result |
+|---|---|
+| Repository copy deactivated | `Success: Deactivated 1 of 1` |
+| Endpoint with **no** copy active | **404** — the route really was gone, so the next 200 proves the artifact served it |
+| Built copy activated | `Success: Activated 1 of 1`, version reported **0.4.0** |
+| `GET ?per_page=2` | **200**, 2 items, `totals.total` **2672**, **35** fields per item |
+| `GET /80187` | **200**, `id=80187`, 35 fields |
+| `GET /999999999` | **404** |
+| no credentials / without the capability | **401** / **403** |
+| `?status=trash` | **400** |
+| `OPTIONS` | **200** |
+| Container log entries from the built copy | **0** |
+| Built copy deactivated, repository copy reactivated | both `Success` |
+| Test install moved out of `wp-content/plugins` | no residue |
+
+**Replica state before and after, identical:**
+
+| | Before | After |
+|---|---|---|
+| `plugins/` (cccbr*) | `cccbr-api-propiedades`, `cccbr-orbitas-propiedades` | same |
+| plugin status | both `active` | both `active` |
+| `cccbr_orbitas` caps on `administrator` | 1 | 1 |
+| collection / single endpoint | — | **200** / **200** |
+
+## Gates
+| Check | Result |
+|---|---|
+| `composer lint` | no syntax errors |
+| `composer cs` | **0 errors / 0 warnings** — the two new scripts needed a `phpcs:ignore` for `exec()` (shelling out to Composer *is* a build script's job) and one for `ZipArchive::$numFiles`, whose camelCase name is not ours to change |
+| `composer stan` | **No errors** (level 8) |
+| `composer test` | **OK (112 tests, 290 assertions)** |
+| `composer validate` | `./composer.json is valid` |
+| `composer run build` | 38 files, 72.0 KB |
+| `composer run build:verify` | all four checks **OK**, "The archive is shippable." |

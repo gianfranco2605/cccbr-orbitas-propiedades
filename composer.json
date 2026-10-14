@@ -45,13 +45,17 @@
 		"cs": "phpcs",
 		"cbf": "phpcbf",
 		"stan": "phpstan analyse --memory-limit=1G",
-		"test": "phpunit"
+		"test": "phpunit",
+		"build": "@php tools/build.php",
+		"build:verify": "@php tools/verify-build.php"
 	},
 	"scripts-descriptions": {
 		"lint": "Run php -l on every PHP file outside vendor/.",
 		"cs": "Check coding standards (WPCS 3 + PHPCompatibilityWP, testVersion 8.1-).",
 		"cbf": "Auto-fix coding standard violations where possible.",
 		"stan": "Run PHPStan static analysis (level 8, WordPress stubs).",
-		"test": "Run the PHPUnit unit suite (no WordPress bootstrap)."
+		"test": "Run the PHPUnit unit suite (no WordPress bootstrap).",
+		"build": "Build dist/cccbr-orbitas-propiedades.zip for production (the repository vendor/ is untouched).",
+		"build:verify": "List the zip's contents and assert it is shippable: runtime files present, no dev dependency, one top-level folder."
 	}
 }

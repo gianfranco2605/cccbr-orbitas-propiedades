@@ -142,3 +142,19 @@ the "Route" row** of the decisions table, now updated in `CLAUDE.md`. One commit
   item for a sample of ids.
 - [x] **CR3.7** — lint, cs, stan, test and the reconciliation re-run and reported.
 - [x] **CR3.8** — committed on `main`, not pushed.
+
+---
+
+## Change request 4 — 2026-10-14 — production build zip
+
+- [x] **CR4.1** — `.distignore` listing every development-only file and folder, with a header
+  recording what the zip *does* contain and why.
+- [x] **CR4.2** — `composer run build` produces `dist/cccbr-orbitas-propiedades.zip` with the
+  top-level folder `cccbr-orbitas-propiedades/`, built from a temporary copy in which
+  `composer install --no-dev --optimize-autoloader` runs, so the repository's `vendor/` is untouched.
+- [x] **CR4.3** — `dist/` added to `.gitignore`.
+- [x] **CR4.4** — reported: the plugin **does** need `vendor/` at runtime; every file in the zip is
+  listed; `composer run build:verify` asserts no dev dependency ships.
+- [x] **CR4.5** — the zip was installed in the replica, the endpoint answered 200, and the
+  repository copy was restored.
+- [x] **CR4.6** — committed on `main`, not pushed.
