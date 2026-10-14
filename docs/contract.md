@@ -1,9 +1,14 @@
 # Response contract — the CCCBR Orbitas properties API
 
-Version **0.4.0**. Derived from the measured source schema in [`docs/schema.md`](schema.md) — every
+Version **0.5.0**. Derived from the measured source schema in [`docs/schema.md`](schema.md) — every
 field below names the real source key it comes from. Where the contract sketch in `LOOP_PROMPT.md`
 §6 had to change, the reason is given in [§9](#9-changes-against-the-contract-sketch).
 
+> **0.5.0 made both routes public.** By decision of 14 Oct 2026 there is no authentication and no
+> capability check: anyone with the URL can read the data, and the `401` and `403` responses no
+> longer exist. Nothing else about the payload changed. The endpoint is to be removed once the
+> Orbitas migration is done.
+>
 > **0.4.0 adds a single-property route**, `GET …/propiedades/{id}`, so a consumer can refresh one
 > record without walking the collection. Purely additive.
 >
@@ -25,30 +30,27 @@ in this repository comes from it.
 
 ---
 
-## 1. Route, method, authentication, authorization
+## 1. Route, method, access
 
 | | |
 |---|---|
 | Routes | `GET /wp-json/cccbr-orbitas/v1/propiedades` — the collection (§3)<br>`GET /wp-json/cccbr-orbitas/v1/propiedades/{id}` — one property (§3.1) |
 | Namespace / version | `cccbr-orbitas/v1` |
 | Methods | `GET` (and `HEAD`) on both. They are **read-only**: no side effects, and no writable method is registered |
-| Authentication | WordPress **Application Passwords** over HTTP Basic. No custom auth, no JWT, no API key |
-| Authorization | capability **`cccbr_orbitas_read_propiedades`** |
-| Who has it | granted to the `administrator` role on plugin activation; removed on uninstall. The plugin never creates users or application passwords |
+| Access | **public** since 0.5.0. No authentication, no capability, no API key: the permission callback of both routes returns `true`. Anyone who knows the URL can read every exported property, the creator's name and email included |
+| Capability | none. The plugin grants nothing on activation; `uninstall.php` still removes `cccbr_orbitas_read_propiedades` from every role so sites that installed 0.4.0 or earlier are cleaned up |
 | Content type | `application/json; charset=UTF-8` |
-| Caching | the response sets `no-store` (WordPress merges it with its own REST directives, so the header reads `no-cache, must-revalidate, max-age=0, no-store, private`) — the payload contains personal data of the property creator |
+| Caching | the response sets `Cache-Control: no-store` — verified on an unauthenticated request, where WordPress adds no REST directives of its own — because the payload contains personal data of the property creator. Do not put the route behind a shared cache or CDN |
 
 ```bash
-curl -s -u "<user>:<application password>" \
-  "https://camara.cr/wp-json/cccbr-orbitas/v1/propiedades?per_page=100"
+curl -s "https://camara.cr/wp-json/cccbr-orbitas/v1/propiedades?per_page=100"
 ```
 
-The application password must be sent as the HTTP Basic password with its spaces intact (WordPress
-accepts them with or without). Credentials are **never** accepted as query parameters.
+Because the route is public, the URL itself is the only thing protecting the data. It should be
+removed as soon as the migration is complete.
 
-**Both routes share the same authentication and the same capability.** Everything in §4 (the
-property object), §6 (errors) and §7 (guarantees) applies to both; §2 and §5 are about the
-collection's arguments and pagination.
+**Both routes are public.** Everything in §4 (the property object), §6 (errors) and §7 (guarantees)
+applies to both; §2 and §5 are about the collection's arguments and pagination.
 
 ---
 
@@ -488,16 +490,17 @@ counts rows should add them to its arithmetic rather than reporting a mismatch.
 
 Standard WordPress REST error envelope, with a **stable `code`** and a translated `message`.
 
-### 6.1 401 and 403 — our code is at the top level
+### 6.1 404 and 500 — our code is at the top level
+
+**There is no `401` and no `403`.** Both routes are public since 0.5.0, so no request is ever
+rejected for a missing credential or a missing capability.
 
 ```json
-{ "code": "cccbr_orbitas_forbidden", "message": "…", "data": { "status": 403 } }
+{ "code": "cccbr_orbitas_property_not_found", "message": "…", "data": { "status": 404 } }
 ```
 
 | HTTP | `code` | Raised when |
 |---|---|---|
-| **401** | `cccbr_orbitas_not_authenticated` | no authenticated user (missing or rejected credentials) |
-| **403** | `cccbr_orbitas_forbidden` | authenticated, but the user lacks `cccbr_orbitas_read_propiedades` |
 | **404** | `cccbr_orbitas_property_not_found` | the single route: no exported property has that id — unknown, other post type, trashed, `auto-draft` or `inherit`, all indistinguishable (§3.1) |
 | **404** | `rest_no_route` | wrong path or method (WordPress core). `/propiedades/abc` lands here, because the route pattern only matches digits |
 | **500** | `cccbr_orbitas_unexpected` | an unexpected server error; the message never leaks internals |
@@ -620,5 +623,6 @@ Each change is required by a measurement in `docs/schema.md`; none of them touch
 | `associate_id` "from a real source field" | user meta `numero-de-asociado` | the only real source; flagged as Q4 because it is user meta |
 | `marketplace_id` "from a real source field, else `null`" | always `null` | no such field exists anywhere in the source (§4.10) |
 | `issues`: "machine-readable codes" | the fixed 22-code list in §4.11, each `{ code, field, detail }` | needed a concrete, stable enumeration to be consumable |
-| "Route … read-only, **collection only**" | a second route, `…/propiedades/{id}`, returning the same object | CCCBR asked in change request 3 for a way to refresh one property without reading the whole collection. This **extends** that row; the route is read-only and shares the collection's authentication and capability |
+| "Route … read-only, **collection only**" | a second route, `…/propiedades/{id}`, returning the same object | CCCBR asked in change request 3 for a way to refresh one property without reading the whole collection. This **extends** that row; the route is read-only and shares the collection's access rules |
+| "Authentication: **Application Passwords**" and "Authorization: capability `cccbr_orbitas_read_propiedades`" | **both routes are public**: no authentication, no capability, no `401`, no `403` | change request 5 (14 Oct 2026) — CCCBR decided the endpoint must be readable without credentials for the duration of the migration. This overrides both rows of the decisions table; the endpoint is to be removed afterwards |
 | "**All** statuses of the CPT by default … `trash`" and the whole "Trashed properties" row | **trashed properties are not exported at all**: not in the default set, not accepted as a filter, not counted in `totals`, and the `trash` object is gone | CCCBR decided in change request 2 that deleted properties must not reach Orbitas. This overrides those two rows of the decisions table, and the three trash meta keys are no longer read anywhere |

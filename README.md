@@ -1,12 +1,12 @@
 # CCCBR Orbitas Propiedades
 
 WordPress plugin for CCCBR (Cámara Costarricense de Corredores de Bienes Raíces) that exposes one
-**authenticated, read-only REST endpoint** so the Orbitas team can pull every CCCBR property —
-complete property data, images, relations and the data of the user who created each property — and
-import them into their Marketplace.
+**public, read-only REST endpoint** so the Orbitas team can pull every CCCBR property — complete
+property data, images, relations and the data of the user who created each property — and import
+them into their Marketplace.
 
 - **Author:** ElPuas Digital Crafts
-- **Version:** 0.4.0
+- **Version:** 0.5.0
 - **Requires:** WordPress 6.9+, PHP 8.1+ (production runs PHP 8.1.13)
 - **License:** GPL-2.0-or-later
 
@@ -17,18 +17,18 @@ GET /wp-json/cccbr-orbitas/v1/propiedades          # the collection, keyset-pagi
 GET /wp-json/cccbr-orbitas/v1/propiedades/{id}     # one property, for refreshing a single record
 ```
 
-Both routes are read-only and share the same gate.
+Both routes are read-only.
 
-- **Authentication:** WordPress Application Passwords (HTTP Basic).
-- **Authorization:** capability `cccbr_orbitas_read_propiedades` (granted to `administrator` on
-  activation, removed on uninstall). The plugin never creates users or passwords.
+- **Access: public.** No authentication and no capability — anyone with the URL can read the data
+  (decision of 14 Oct 2026). The endpoint is meant to be removed once the migration is done.
+  Responses carry `Cache-Control: no-store`, so no intermediary retains them.
 - **Pagination:** keyset cursor on ascending post ID (`after_id`); `per_page` default 50, maximum 100.
 - **Scope:** every `cccbr-propiedades` property that is **not in the trash** — 2672 today — each item carrying its own status. Trashed properties are excluded by CCCBR's decision: `?status=trash` is a `400`, and asking for a trashed id gives the same `404` as an unknown one.
 - **Both routes return the identical property object**, verified on a sample by `tools/reconcile.php`.
 
-**Building the import?** Start with [`docs/consumer-guide.md`](docs/consumer-guide.md) — how to
-authenticate, how to walk all 2672 properties without omissions or duplicates, how to retry, and a
-measured list of what the source data does not contain. The exhaustive contract is
+**Building the import?** Start with [`docs/consumer-guide.md`](docs/consumer-guide.md) — how to walk
+all 2672 properties without omissions or duplicates, how to retry, and a measured list of what the
+source data does not contain. The exhaustive contract is
 [`docs/contract.md`](docs/contract.md), and [`docs/REPORT.md`](docs/REPORT.md) summarises what was
 built and how it was verified.
 
@@ -61,7 +61,7 @@ composer run build:verify   # list the archive and assert it is shippable
 
 The zip has a single top-level folder, `cccbr-orbitas-propiedades/`, so WordPress installs it under
 that slug. It contains the plugin, `uninstall.php`, `src/`, `README.md`, `CHANGELOG.md` and
-`vendor/` — **38 files, ~72 KB**.
+`vendor/` — **37 files, ~72 KB**.
 
 `vendor/` ships because the plugin needs it at runtime: the main file includes
 `vendor/autoload.php` and shows an admin notice instead of doing anything when it is missing. After
@@ -69,7 +69,7 @@ that slug. It contains the plugin, `uninstall.php`, `src/`, `README.md`, `CHANGE
 no production dependencies.
 
 Everything development-only is listed in [`.distignore`](.distignore) — tests, tools, docs, the
-Postman collection, the Composer manifests and every tool config. The build works on a **temporary
+Composer manifests and every tool config. The build works on a **temporary
 copy** and runs `composer install --no-dev --optimize-autoloader` there, so the repository's own
 `vendor/` (PHPCS, PHPStan, PHPUnit) is never touched and `composer cs` keeps working straight after
 a build.

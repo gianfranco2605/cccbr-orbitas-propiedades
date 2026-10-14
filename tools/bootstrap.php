@@ -98,10 +98,12 @@ if ( ! function_exists( __NAMESPACE__ . '\\cccbr_orbitas_tools_prepare' ) ) {
 	}
 
 	/**
-	 * Signs the process in as an administrator, so the permission callback passes.
+	 * Signs the process in as an administrator.
 	 *
-	 * No credential is involved: the tools run on the server as the site itself. If no
-	 * administrator exists the caller is told, rather than the tool silently measuring a 403.
+	 * The endpoint itself is public since 0.5.0, so this is no longer needed to pass a permission
+	 * check; it is kept so the tools read the site as a logged-in administrator would, which is what
+	 * the measurements were taken with. No credential is involved: the tools run on the server as
+	 * the site itself.
 	 *
 	 * @return int The user ID, or 0 when none was found.
 	 */
@@ -160,7 +162,7 @@ if ( ! function_exists( __NAMESPACE__ . '\\cccbr_orbitas_tools_prepare' ) ) {
 	 * Performs one request against the properties route and returns the decoded payload.
 	 *
 	 * Going through `rest_do_request()` exercises the real dispatch path, including argument
-	 * validation and the permission callback.
+	 * validation.
 	 *
 	 * @param array $params Query parameters.
 	 * @return array{status: int, body: array<string, mixed>, queries: int, seconds: float}

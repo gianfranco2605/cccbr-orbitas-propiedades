@@ -16,9 +16,6 @@
 # Personal Claude Code settings
 /.claude/settings.local.json
 
-# Postman environments may contain credentials
-/postman/*.postman_environment.json
-
 # Tooling caches and local overrides
 /.phpunit.result.cache
 /.phpunit.cache/

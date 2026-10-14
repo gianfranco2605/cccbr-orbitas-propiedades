@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace ElPuas\CCCBR\OrbitasPropiedades;
 
-use ElPuas\CCCBR\OrbitasPropiedades\Auth\Permissions;
 use ElPuas\CCCBR\OrbitasPropiedades\Mapper\CoordinatesMapper;
 use ElPuas\CCCBR\OrbitasPropiedades\Mapper\LocationMapper;
 use ElPuas\CCCBR\OrbitasPropiedades\Mapper\MediaMapper;
@@ -29,7 +28,7 @@ use ElPuas\CCCBR\OrbitasPropiedades\Support\OptionNormalizer;
  * The composition root: the one place that knows how the services fit together.
  *
  * It is called **lazily**, from inside the `rest_api_init` callback, so a page view, an admin screen
- * or a cron run never constructs the fourteen objects an API request needs. It is also the only
+ * or a cron run never constructs the objects an API request needs. It is also the only
  * place that reads WordPress's global `$wpdb`, which it passes in by constructor so no other class
  * of this plugin touches a global.
  *
@@ -68,7 +67,6 @@ final class Factory {
 		$id_parser = new IdListParser();
 
 		return new PropertiesController(
-			new Permissions(),
 			new PropertySchema(),
 			new PropertyRepository( $wpdb ),
 			new PropertyMapper(

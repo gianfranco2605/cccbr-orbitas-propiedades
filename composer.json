@@ -1,6 +1,6 @@
 {
 	"name": "elpuas/cccbr-orbitas-propiedades",
-	"description": "Authenticated read-only REST endpoint exposing all CCCBR properties for the Orbitas Marketplace import.",
+	"description": "Public read-only REST endpoint exposing all CCCBR properties for the Orbitas Marketplace import.",
 	"type": "wordpress-plugin",
 	"license": "GPL-2.0-or-later",
 	"authors": [

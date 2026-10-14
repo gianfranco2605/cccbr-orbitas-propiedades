@@ -1,7 +1,7 @@
 # Consumer guide — pulling CCCBR properties into the Orbitas Marketplace
 
-For the team building the import. It covers how to authenticate, how to walk the whole collection
-without missing or duplicating a property, what each field means, and — just as important — **what
+For the team building the import. It covers how to reach the endpoint, how to walk the whole
+collection without missing or duplicating a property, what each field means, and — just as important — **what
 the source data does not contain**, so the import can be designed around real gaps instead of
 discovering them at run time.
 
@@ -13,7 +13,7 @@ record appears in this repository.
 
 ## 1. In one paragraph
 
-One authenticated, read-only endpoint returns every CCCBR property that is **not in the trash** —
+One public, read-only endpoint returns every CCCBR property that is **not in the trash** —
 published and draft alike — with its custom fields, location, coordinates, images, the data of the
 associate who created it, and a per-property list of data-quality issues. It is paginated with a
 cursor on the WordPress post id, so walking it from start to finish is safe even while people keep
@@ -26,29 +26,23 @@ not reach the Marketplace. There were 383 of them in the source. You cannot ask 
 
 ---
 
-## 2. Authentication
+## 2. Access
 
-| | |
-|---|---|
-| Scheme | HTTP Basic with a WordPress **Application Password** |
-| User | a WordPress account holding the capability `cccbr_orbitas_read_propiedades` |
-| Who creates it | **CCCBR**, in `Users → Profile → Application Passwords`. This plugin never creates accounts or passwords |
+**The endpoint is public.** No credentials, no token, no header: a plain `GET` is enough.
 
 ```bash
-curl -s -u "orbitas-import:xxxx xxxx xxxx xxxx xxxx xxxx" \
-  "https://camara.cr/wp-json/cccbr-orbitas/v1/propiedades?per_page=100"
+curl -s "https://camara.cr/wp-json/cccbr-orbitas/v1/propiedades?per_page=100"
 ```
 
-- Send the application password **with its spaces**; WordPress accepts it either way.
-- Always over **HTTPS**. The response contains personal data (the creator's name and email), and
-  Basic auth puts the credential in a header on every request.
-- Credentials are never accepted as query parameters.
-- Ask CCCBR for an account whose **only** capability is this one. The plugin grants the capability
-  to `administrator` on activation, but an import does not need an administrator.
-
-Two things to do on your side: store the password in a secret manager, not in the job's source, and
-rotate it by asking CCCBR to revoke the Application Password — revoking one does not disturb the
-user's other integrations.
+- There is no `401` and no `403`. Nothing on your side has to be configured, stored or rotated.
+- Request it over **HTTPS**, so the payload is not readable in transit. It contains personal data:
+  the name and email of the associate who created each property.
+- Responses carry `Cache-Control: no-store`. Do not put the endpoint behind a shared cache or CDN,
+  and do not log full response bodies.
+- The endpoint is public only for the duration of the migration, and CCCBR will remove it once the
+  import is done. Treat the URL as the only thing standing between this data and the open internet:
+  keep it out of tickets, client-side code and public repositories, and tell CCCBR when you are
+  finished so they can take it down.
 
 ---
 
@@ -59,7 +53,7 @@ GET /wp-json/cccbr-orbitas/v1/propiedades          # the collection, paginated
 GET /wp-json/cccbr-orbitas/v1/propiedades/{id}     # one property
 ```
 
-Both need the same credentials and the same capability. The collection's arguments:
+Both are public and read-only. The collection's arguments:
 
 | Argument | Default | Range | Meaning |
 |---|---|---|---|
@@ -77,8 +71,7 @@ the number of requests.
 ### One property by id
 
 ```bash
-curl -s -u "$USER:$APP_PASSWORD" \
-  "https://camara.cr/wp-json/cccbr-orbitas/v1/propiedades/184589"
+curl -s "https://camara.cr/wp-json/cccbr-orbitas/v1/propiedades/184589"
 ```
 
 The body is **the property object itself** — no `data`, no `pagination`, no `totals` — and it is
@@ -113,7 +106,7 @@ loop:
 after=0; page=0
 while : ; do
   page=$((page+1))
-  curl -sS -u "$USER:$APP_PASSWORD" \
+  curl -sS \
     "https://camara.cr/wp-json/cccbr-orbitas/v1/propiedades?per_page=100&after_id=$after" \
     -o "page_$page.json"
   more=$(jq -r '.pagination.has_more' "page_$page.json")
@@ -155,10 +148,11 @@ filter would add contract surface for very little gain.
 |---|---|---|---|
 | **400** | `rest_invalid_param` | **No** | A bad argument. The specific reason is in `data.details.<argument>.code`: `cccbr_orbitas_invalid_per_page`, `…_invalid_after_id`, `…_invalid_status`, `…_invalid_id`. Fix the request |
 | **404** | `cccbr_orbitas_property_not_found` | **No** | Single route only: no exported property has that id. Unknown, wrong type and trashed are indistinguishable by design. Stop tracking that id |
-| **401** | `cccbr_orbitas_not_authenticated` | **No** | Missing or rejected credentials. Check the Application Password |
-| **403** | `cccbr_orbitas_forbidden` | **No** | The account is valid but lacks `cccbr_orbitas_read_propiedades`. Ask CCCBR to grant it |
 | **404** | `rest_no_route` | **No** | Wrong path or method |
 | **429 / 5xx** | — | **Yes** | Transient. Retry the **same `after_id`** with exponential backoff |
+
+There is **no `401` and no `403`**: the endpoint is public, so a request is never rejected for a
+missing credential or a missing permission.
 
 Match on `code`, never on `message` — messages are translated and may be reworded.
 
@@ -395,10 +389,8 @@ that matches nothing at all appears, as `option_value_unmapped`.
 
 ## 10. A checklist for the first import
 
-1. Ask CCCBR for an Application Password on an account whose only capability is
-   `cccbr_orbitas_read_propiedades`, over HTTPS.
-2. `curl` one page of 1 and confirm you get `200` and the envelope. A `401` means the credential,
-   a `403` means the capability.
+1. Confirm the URL with CCCBR, and agree when the endpoint will be taken down again.
+2. `curl` one page of 1, with no credentials, and confirm you get `200` and the envelope.
 3. `OPTIONS` the route and generate your types from the schema.
 4. Walk with `per_page=100`, storing each page verbatim before transforming it. **27 pages** today.
 5. Record `pagination.max_id` and `generated_at` from the first page.

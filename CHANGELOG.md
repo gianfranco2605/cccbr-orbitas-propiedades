@@ -5,13 +5,37 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.5.0] — 2026-10-14
+
+Change request 5. **The endpoint is now public**: CCCBR decided it must be readable without
+credentials for the duration of the Orbitas migration, after which it will be removed. This
+overrides the Authentication and Authorization rows of the project's decisions table.
+
+### Changed
+
+- **BREAKING for anyone integrating with credentials — none are needed any more.** The
+  `permission_callback` of both routes returns `true`. No authentication, no capability, no API key:
+  any `GET` to the route reads the data, the creator's name and email included. The URL is now the
+  only thing protecting the payload.
+- Responses still set `Cache-Control: no-store`, so no intermediary retains them. Still read-only:
+  only a readable method is registered on either route.
+- `uninstall.php` keeps removing `cccbr_orbitas_read_propiedades` from every role, so a site that
+  installed 0.4.0 or earlier is cleaned up. It no longer reads the capability from a class constant.
+
+### Removed
+
+- **`401` and `403` responses**, and with them the error codes `cccbr_orbitas_not_authenticated` and
+  `cccbr_orbitas_forbidden`. The remaining statuses are `200`, `400`, `404` and `500`.
+- **The `Auth\Permissions` class** and every use of it: the controller no longer takes it, and the
+  `Factory` no longer builds it.
+- **The capability grant on activation.** `Lifecycle\Activator::activate()` now persists nothing at
+  all — no capability, no option, no table.
 
 ### Added
 
 - **A production build.** `composer run build` creates
   `dist/cccbr-orbitas-propiedades.zip` with a single top-level folder `cccbr-orbitas-propiedades/`
-  (38 files, ~72 KB), and `composer run build:verify` lists it and asserts it is shippable.
+  (37 files, ~72 KB), and `composer run build:verify` lists it and asserts it is shippable.
 - `.distignore` naming every development-only path, with a header recording what the zip *does*
   contain and why.
 - `dist/` is git-ignored.
@@ -26,6 +50,13 @@ dependencies.
 
 - `src/.gitkeep`, vestigial since `src/` gained real files in Task 3 — it was the one stray file the
   first build put in the archive.
+
+### Verified
+
+lint, cs and stan clean; **112 tests / 290 assertions**; with **no credentials at all**: `200` on
+the collection, `200` on a single property, `400` for `per_page=101`, `404` for an unknown id, and
+`Cache-Control: no-store` on the response; no notices, warnings or errors from this plugin in the
+log; the rebuilt zip (37 files, ~72 KB) passes `composer run build:verify`.
 
 ## [0.4.0] — 2026-10-13
 
@@ -202,7 +233,6 @@ deployment to production is outside this scope.
   count does not grow with the page size.
 - 71 PHPUnit unit tests over the cursor, the number parser, the option normalizer, the id parser and
   the coordinate mapper.
-- A Postman collection with 21 requests and 62 assertions, containing no credentials.
 
 **Documentation**
 - `docs/schema.md`, `docs/contract.md`, `docs/consumer-guide.md`, `docs/reconciliation.md`,
@@ -214,6 +244,7 @@ deployment to production is outside this scope.
 - WPCS 3 via PHPCS with PHPCompatibilityWP at `testVersion 8.1-`; PHPStan level 8 with WordPress
   stubs; PHPUnit for WordPress-free unit tests. `composer lint`, `cs`, `cbf`, `stan`, `test`.
 
+[0.5.0]: https://github.com/gianfranco2605/cccbr-orbitas-propiedades/releases/tag/v0.5.0
 [0.4.0]: https://github.com/gianfranco2605/cccbr-orbitas-propiedades/releases/tag/v0.4.0
 [0.3.0]: https://github.com/gianfranco2605/cccbr-orbitas-propiedades/releases/tag/v0.3.0
 [0.2.0]: https://github.com/gianfranco2605/cccbr-orbitas-propiedades/releases/tag/v0.2.0

@@ -9,40 +9,24 @@ declare(strict_types=1);
 
 namespace ElPuas\CCCBR\OrbitasPropiedades\Lifecycle;
 
-use ElPuas\CCCBR\OrbitasPropiedades\Auth\Permissions;
-use WP_Role;
-
 /**
- * Grants the read capability on activation.
+ * Activation hook.
  *
- * This is the only thing the plugin persists. It creates no table, no option, no user and no
- * application password, and it never flushes rewrite rules: REST namespaces need no rewrite.
+ * Since change request 5 (14 Oct 2026) the endpoint is public, so there is no capability to grant
+ * and activation persists **nothing**: no capability, no table, no option, no user and no
+ * application password. It never flushes rewrite rules either — REST namespaces need no rewrite.
+ *
+ * The class is kept so the activation hook keeps a single documented home, and because
+ * `uninstall.php` still removes the capability that versions up to 0.4.0 granted.
  */
 final class Activator {
 
 	/**
-	 * Role that receives the capability on activation.
-	 */
-	private const TARGET_ROLE = 'administrator';
-
-	/**
-	 * Adds the read capability to the administrator role.
-	 *
-	 * Safe to run repeatedly: adding a capability a role already has is a no-op.
+	 * Does nothing, on purpose.
 	 *
 	 * @return void
 	 */
 	public function activate(): void {
-		$role = get_role( self::TARGET_ROLE );
-
-		if ( ! $role instanceof WP_Role ) {
-			return;
-		}
-
-		if ( $role->has_cap( Permissions::CAPABILITY ) ) {
-			return;
-		}
-
-		$role->add_cap( Permissions::CAPABILITY );
+		// The endpoint is public: there is nothing to persist.
 	}
 }

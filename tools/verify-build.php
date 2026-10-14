@@ -150,7 +150,7 @@ function verify(): void {
 	}
 
 	// 3. Nothing the .distignore excludes.
-	$forbidden = array( 'tests/', 'tools/', 'docs/', 'postman/', '.claude/', 'dist/' );
+	$forbidden = array( 'tests/', 'tools/', 'docs/', '.claude/', 'dist/' );
 
 	foreach ( $forbidden as $prefix ) {
 		foreach ( $files as $file ) {
@@ -182,7 +182,7 @@ function verify(): void {
 	if ( array() === $problems ) {
 		printf( '  OK  runtime files present, including vendor/autoload.php%s', PHP_EOL );
 		printf( '  OK  no development dependency in vendor/%s', PHP_EOL );
-		printf( '  OK  no tests, tools, docs, postman, .claude, manifests or tool configs%s', PHP_EOL );
+		printf( '  OK  no tests, tools, docs, .claude, manifests or tool configs%s', PHP_EOL );
 		printf( '  OK  exactly one top-level folder: %s/%s', VERIFY_SLUG, PHP_EOL );
 		printf( '%sThe archive is shippable.%s', PHP_EOL, PHP_EOL );
 

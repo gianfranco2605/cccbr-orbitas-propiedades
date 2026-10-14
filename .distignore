@@ -6,7 +6,7 @@
 #
 # What the zip DOES contain, and why:
 #   cccbr-orbitas-propiedades.php  the plugin header and bootstrap
-#   uninstall.php                  removes the capability on uninstall
+#   uninstall.php                  removes the capability granted by versions up to 0.4.0
 #   src/                           the plugin itself
 #   vendor/                        REQUIRED AT RUNTIME: the main file includes
 #                                  vendor/autoload.php and does nothing without it. After
@@ -45,11 +45,10 @@ phpunit.xml
 .phpunit.cache
 .phpcs-cache
 
-# Tests, build tooling, working documentation and API client collections
+# Tests, build tooling and working documentation
 tests
 tools
 docs
-postman
 
 # Build output
 dist

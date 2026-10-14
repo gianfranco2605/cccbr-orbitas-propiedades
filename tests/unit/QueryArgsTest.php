@@ -16,8 +16,8 @@ use PHPUnit\Framework\TestCase;
  * Guards `QueryArgs::ALLOWED_STATUSES`, which is a four-way decision in one constant.
  *
  * Only the constant is covered here: the validation methods build `WP_Error` objects and call
- * `__()`, so they need WordPress and are exercised over HTTP instead (the Postman collection and
- * the `curl` runs in `docs/progress.md`). Reading a class constant autoloads the class without
+ * `__()`, so they need WordPress and are exercised over HTTP instead (the `curl` runs in
+ * `docs/progress.md`). Reading a class constant autoloads the class without
  * touching either, which is why this works in a WordPress-free suite.
  */
 final class QueryArgsTest extends TestCase {

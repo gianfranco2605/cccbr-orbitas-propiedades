@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace ElPuas\CCCBR\OrbitasPropiedades\Rest;
 
-use ElPuas\CCCBR\OrbitasPropiedades\Auth\Permissions;
 use ElPuas\CCCBR\OrbitasPropiedades\Mapper\PropertyMapper;
 use ElPuas\CCCBR\OrbitasPropiedades\Pagination\Cursor;
 use ElPuas\CCCBR\OrbitasPropiedades\Repository\PropertyRepository;
@@ -25,8 +24,12 @@ use WP_REST_Server;
  * callbacks with untyped parameters, and PHP forbids narrowing them in a subclass, which would
  * cost the strict typing required by the project standards. The endpoint also returns a custom
  * envelope rather than a plain item list, so little of the base class would be used. Everything
- * the base class would have provided — a real permission callback, argument validation and a
- * published schema — is implemented explicitly here.
+ * the base class would have provided — argument validation and a published schema — is implemented
+ * explicitly here.
+ *
+ * The endpoint is **public**: change request 5 (14 Oct 2026) removed authentication and the
+ * capability check, so anyone holding the URL can read it. It stays read-only, and is meant to be
+ * removed once the Orbitas migration is done.
  */
 final class PropertiesController {
 
@@ -49,13 +52,6 @@ final class PropertiesController {
 	 * importer has nothing to do differently in any of those cases.
 	 */
 	public const NOT_FOUND_CODE = 'cccbr_orbitas_property_not_found';
-
-	/**
-	 * Authorization service.
-	 *
-	 * @var Permissions
-	 */
-	private Permissions $permissions;
 
 	/**
 	 * Response schema provider.
@@ -81,21 +77,18 @@ final class PropertiesController {
 	/**
 	 * Constructor.
 	 *
-	 * @param Permissions        $permissions Authorization service.
-	 * @param PropertySchema     $schema      Response schema provider.
-	 * @param PropertyRepository $repository  Property data source.
-	 * @param PropertyMapper     $mapper      Property mapper.
+	 * @param PropertySchema     $schema     Response schema provider.
+	 * @param PropertyRepository $repository Property data source.
+	 * @param PropertyMapper     $mapper     Property mapper.
 	 */
 	public function __construct(
-		Permissions $permissions,
 		PropertySchema $schema,
 		PropertyRepository $repository,
 		PropertyMapper $mapper
 	) {
-		$this->permissions = $permissions;
-		$this->schema      = $schema;
-		$this->repository  = $repository;
-		$this->mapper      = $mapper;
+		$this->schema     = $schema;
+		$this->repository = $repository;
+		$this->mapper     = $mapper;
 	}
 
 	/**
@@ -113,7 +106,7 @@ final class PropertiesController {
 				array(
 					'methods'             => WP_REST_Server::READABLE,
 					'callback'            => array( $this, 'get_items' ),
-					'permission_callback' => array( $this->permissions, 'check' ),
+					'permission_callback' => array( $this, 'is_public' ),
 					'args'                => $this->collection_params(),
 				),
 				'schema' => array( $this->schema, 'collection' ),
@@ -127,12 +120,25 @@ final class PropertiesController {
 				array(
 					'methods'             => WP_REST_Server::READABLE,
 					'callback'            => array( $this, 'get_item' ),
-					'permission_callback' => array( $this->permissions, 'check' ),
+					'permission_callback' => array( $this, 'is_public' ),
 					'args'                => $this->item_params(),
 				),
 				'schema' => array( $this->schema, 'item' ),
 			)
 		);
+	}
+
+	/**
+	 * Permission callback of both routes.
+	 *
+	 * The endpoint is public by decision of change request 5: no authentication, no capability.
+	 * It is a named method rather than `__return_true` so the intent is explicit in the code and so
+	 * restoring an authorization check means changing one method, not the route registration.
+	 *
+	 * @return bool Always true.
+	 */
+	public function is_public(): bool {
+		return true;
 	}
 
 	/**
